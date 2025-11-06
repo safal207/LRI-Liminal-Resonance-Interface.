@@ -181,7 +181,7 @@ export class LRIWSServer {
 
       const timeout = setTimeout(() => {
         reject(new Error('Handshake timeout'));
-      }, 10000);
+      }, 10000).unref(); // Don't block process exit
 
       const messageHandler = async (data: Buffer) => {
         try {

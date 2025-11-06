@@ -102,10 +102,12 @@ export class LRIWSClient {
 
       this.ws.on('close', async () => {
         console.log('[LRI WS Client] Connection closed');
+        // Set conn to null BEFORE calling onClose handler
+        this.conn = null;
+
         if (this.onClose) {
           await this.onClose();
         }
-        this.conn = null;
 
         // Reconnect if enabled
         if (this.options.reconnect) {
@@ -131,7 +133,7 @@ export class LRIWSClient {
 
       const timeout = setTimeout(() => {
         reject(new Error('Handshake timeout'));
-      }, 10000);
+      }, 10000).unref(); // Don't block process exit
 
       const messageHandler = (data: Buffer) => {
         try {
@@ -271,6 +273,11 @@ export class LRIWSClient {
         console.error('[LRI WS Client] Reconnect failed:', error);
       });
     }, delay);
+
+    // Don't block process exit
+    if (this.reconnectTimer.unref) {
+      this.reconnectTimer.unref();
+    }
   }
 
   /**
