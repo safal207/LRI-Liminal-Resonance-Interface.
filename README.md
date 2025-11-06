@@ -185,7 +185,7 @@ lri/
 
 ### Planned (v0.2.0)
 
-- [ ] LHS (Liminal Handshake Sequence) for WebSocket
+- [x] LHS (Liminal Handshake Sequence) for WebSocket ✅
 - [ ] LTP (Liminal Trust Protocol) - JWS signatures
 - [ ] LSS (Liminal Session Store) - coherence calculation
 - [ ] CBOR encoding for IoT
@@ -230,6 +230,27 @@ cd examples/fastapi-app
 pip install -r requirements.txt
 python main.py
 ```
+
+### WebSocket Echo Server
+
+See [examples/ws-echo](examples/ws-echo/) for a WebSocket server with LHS handshake protocol.
+
+```bash
+cd examples/ws-echo
+npm install
+
+# Terminal 1: Start server
+npm run server
+
+# Terminal 2: Run client
+npm run client
+```
+
+Features:
+- **LHS Handshake**: Hello → Mirror → Bind → Seal sequence
+- **LCE Framing**: Length-prefixed encoding for metadata + payload
+- **Session Management**: Track multiple concurrent connections
+- **Context Preservation**: Thread continuity and affect metadata
 
 ## Contributing
 
