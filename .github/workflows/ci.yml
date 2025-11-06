@@ -96,6 +96,37 @@ jobs:
         working-directory: packages/python-lri
         run: python -m pytest -v
 
+  # CLI Tool
+  lrictl:
+    name: CLI Tool (lrictl)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 21]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        working-directory: packages/lrictl
+        run: npm install
+
+      - name: Lint
+        working-directory: packages/lrictl
+        run: npm run lint
+
+      - name: Build
+        working-directory: packages/lrictl
+        run: npm run build
+
+      - name: Test
+        working-directory: packages/lrictl
+        run: npm test
+
   # Examples
   examples:
     name: Test Examples
@@ -186,6 +217,7 @@ jobs:
       - validate-schemas
       - node-sdk
       - python-sdk
+      - lrictl
       - examples
       - vocab
     steps:

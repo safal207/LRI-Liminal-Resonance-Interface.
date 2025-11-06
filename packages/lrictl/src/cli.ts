@@ -10,7 +10,7 @@ import chalk from 'chalk';
 import * as fs from 'fs';
 import { validate, validateFile } from './validator';
 import { formatLCE, LCE } from './formatter';
-import { encode, decode, encodeObject, decodeToObject, isValidBase64 } from './encoder';
+import { encodeObject, decodeToObject, isValidBase64 } from './encoder';
 import inquirer from 'inquirer';
 
 const program = new Command();
