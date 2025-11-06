@@ -14,9 +14,12 @@ function getValidator(): ValidateFunction {
       allErrors: true,
       strict: false,
       validateSchema: false, // Skip meta-schema validation to support draft 2020-12
+      validateFormats: true,
     });
     addFormats(ajv);
-    validateFn = ajv.compile(lceSchema);
+    // Remove $schema field to avoid draft validation issues
+    const { $schema, ...schemaWithoutMeta } = lceSchema;
+    validateFn = ajv.compile(schemaWithoutMeta);
   }
   return validateFn;
 }
