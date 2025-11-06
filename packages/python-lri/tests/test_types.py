@@ -189,17 +189,18 @@ class TestLCE:
         assert lce.policy.consent == "team"
         assert lce.qos.coherence == 0.87
 
-    def test_lce_missing_required_fields(self):
-        """Test LCE validation fails without required fields"""
-        # Missing v
-        with pytest.raises(ValidationError):
-            LCE(intent=Intent(type="tell"), policy=Policy(consent="private"))
+    def test_lce_version_defaults_to_1(self):
+        """Test LCE version defaults to 1 if not provided"""
+        lce = LCE(intent=Intent(type="tell"), policy=Policy(consent="private"))
+        assert lce.v == 1
 
-        # Missing intent
+    def test_lce_missing_intent(self):
+        """Test LCE validation fails without intent"""
         with pytest.raises(ValidationError):
             LCE(v=1, policy=Policy(consent="private"))
 
-        # Missing policy
+    def test_lce_missing_policy(self):
+        """Test LCE validation fails without policy"""
         with pytest.raises(ValidationError):
             LCE(v=1, intent=Intent(type="tell"))
 

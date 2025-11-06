@@ -10,9 +10,15 @@ let validateFn: ValidateFunction | null = null;
  */
 function getValidator(): ValidateFunction {
   if (!validateFn) {
-    const ajv = new Ajv({ allErrors: true, strict: false });
+    const ajv = new Ajv({
+      allErrors: true,
+      strict: false,
+      validateFormats: true,
+    });
     addFormats(ajv);
-    validateFn = ajv.compile(lceSchema);
+    // Remove $schema field to avoid draft validation issues
+    const { $schema, ...schemaWithoutMeta } = lceSchema;
+    validateFn = ajv.compile(schemaWithoutMeta);
   }
   return validateFn;
 }
