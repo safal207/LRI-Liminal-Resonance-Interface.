@@ -2,9 +2,10 @@
 
 > **Layer 8 for Human-AI Communication**
 
+[![CI](https://github.com/safal207/LRI-Liminal-Resonance-Interface./actions/workflows/ci.yml/badge.svg)](https://github.com/safal207/LRI-Liminal-Resonance-Interface./actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/lri/lri)
-[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/lri/lri)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/lri/lri)
+[![Status](https://img.shields.io/badge/status-beta-green.svg)](https://github.com/lri/lri)
 
 LRI (Liminal Resonance Interface) is a semantic communication protocol that sits above the traditional OSI Layer 7 (Application), adding context, intent, affect, and consent to every interaction between humans and AI systems.
 
@@ -29,6 +30,14 @@ Current protocols (HTTP, WebSocket, gRPC) transport *data* but not *meaning*. LR
 | Raw text | Rich semantic context |
 | No quality metrics | Coherence tracking |
 | Implicit trust | Cryptographic proof |
+
+---
+
+📚 **[Get Started with LRI →](docs/getting-started.md)**
+
+Complete guide with WebSocket, LTP (cryptographic signing), LSS (session management), and production examples.
+
+---
 
 ## Quick Start
 
@@ -174,7 +183,7 @@ lri/
 
 ## Features
 
-### Current (v0.1.0 - Alpha)
+### Current (v0.2.0 - Beta)
 
 - ✅ LCE JSON Schema v1
 - ✅ Intent/Affect vocabularies
@@ -182,15 +191,12 @@ lri/
 - ✅ Python SDK (FastAPI integration)
 - ✅ Base64 HTTP header encoding
 - ✅ Schema validation
-
-### Planned (v0.2.0)
-
-- [x] LHS (Liminal Handshake Sequence) for WebSocket ✅
-- [x] LTP (Liminal Trust Protocol) - Ed25519 + JWS signatures ✅
-- [ ] LSS (Liminal Session Store) - coherence calculation
-- [ ] CBOR encoding for IoT
-- [ ] gRPC metadata adapter
-- [ ] CLI tool (`lrictl`)
+- ✅ LHS (Liminal Handshake Sequence) for WebSocket
+- ✅ LTP (Liminal Trust Protocol) - Ed25519 + JWS signatures
+- ✅ LSS (Liminal Session Store) - coherence calculation
+- ✅ CBOR encoding for IoT
+- ✅ gRPC metadata adapter
+- ✅ CLI tool (`lrictl`)
 
 ### Future (v1.0)
 
@@ -202,6 +208,15 @@ lri/
 
 ## Documentation
 
+### Getting Started
+- **[📘 Getting Started Guide](docs/getting-started.md)** - Complete tutorial with examples
+  - Installation & First LCE message
+  - WebSocket server & client setup
+  - LTP (Trust Protocol) with Ed25519 signatures
+  - LSS (Session Store) for coherence tracking
+  - Express.js integration & production examples
+
+### Reference
 - [RFC-000: LRI Overview](docs/rfcs/rfc-000.md) (Coming soon)
 - [LCE Schema Spec](schemas/lce-v0.1.json)
 - [Intent Vocabulary](vocab/intent.yaml)
@@ -315,9 +330,9 @@ We have 22 planned issues across spec, SDK, security, and tooling. See [docs/iss
 
 | Milestone | Version | Target | Status |
 |-----------|---------|--------|--------|
-| Core spec + basic SDKs | v0.1.0 | Q1 2025 | 🟡 In Progress |
-| WebSocket + Crypto | v0.2.0 | Q2 2025 | 📋 Planned |
-| Production ready | v1.0.0 | Q3 2025 | 📋 Planned |
+| Core spec + basic SDKs | v0.1.0 | Q1 2025 | ✅ Complete |
+| WebSocket + Crypto | v0.2.0 | Nov 2025 | ✅ Complete |
+| Production ready | v1.0.0 | Q1 2026 | 📋 Planned |
 
 ## Use Cases
 

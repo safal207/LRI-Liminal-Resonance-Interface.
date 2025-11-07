@@ -1,35 +1,11 @@
-# Changelog
+# Release v0.2.0 - WebSocket, Crypto, and IoT Support
 
-All notable changes to the LRI project will be documented in this file.
+This PR contains the complete v0.2.0 release with all planned features implemented and tested.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 🎉 Major Features
 
-## [Unreleased]
+### Core Protocol Features
 
-### Added
-- N/A
-
-### Changed
-- N/A
-
-### Deprecated
-- N/A
-
-### Removed
-- N/A
-
-### Fixed
-- N/A
-
-### Security
-- N/A
-
-## [0.2.0] - 2025-11-07
-
-### Added
-
-#### Core Protocol Features
 - **LHS (Liminal Handshake Sequence)** for WebSocket connections
   - Four-step handshake: Hello → Mirror → Bind → Seal
   - Feature negotiation (LTP, LSS, compression)
@@ -74,7 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `lrictl example` - Generate sample LCE files
   - JWK (JSON Web Key) format support
 
-#### WebSocket Implementation
+### WebSocket Implementation
+
 - **LRIWSServer** - WebSocket server with LHS protocol
   - Automatic handshake negotiation
   - LCE frame parsing (length-prefixed)
@@ -88,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frame encoding/decoding
   - Promise-based API
 
-#### Documentation
+## 📚 Documentation
+
 - Comprehensive Getting Started Guide
   - Installation instructions
   - First LCE message tutorial
@@ -98,7 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Express.js integration
   - Complete chat server example
 
-#### Testing
+## ✅ Testing
+
 - **204 passing tests** across 13 test suites
   - WebSocket server tests (40+ tests)
   - WebSocket client tests (30+ tests)
@@ -108,63 +87,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - gRPC metadata tests (25 tests)
   - Middleware and validation tests (38+ tests)
 
-### Changed
-- WebSocket tests now use IPv4 (127.0.0.1) instead of localhost
-  - Fixes CI failures due to IPv6/IPv4 mismatch
-  - Uses PID-based port allocation for parallel test execution
+## 🔧 Bug Fixes
+
+- Fixed WebSocket test failures in CI environment
+  - Resolved EADDRINUSE errors from port conflicts
+  - Fixed IPv6 connection refused errors by forcing IPv4 (127.0.0.1)
+  - Implemented PID-based port allocation for parallel test execution
   - Increased cleanup delays for test reliability
 
-### Fixed
-- WebSocket test failures in CI environment
-  - EADDRINUSE errors from port conflicts
-  - IPv6 connection refused errors
-  - Race conditions in parallel test execution
+## 📊 Statistics
 
-## [0.1.0] - 2025-01-XX (Planned)
+- **7 commits** (6 feature commits + 1 release commit)
+- **41 files changed**
+- **+8,990 lines added**
+- **204 tests passing** ✅
+- **13 test suites** all green
 
-### Added
-- Core LRI specification (RFC-000)
-- LCE schema v1 with validation
-- Basic HTTP support (headers)
-- Node.js and Python SDKs
-- Example applications
-- Documentation site
+## 📝 Commits
 
-### Goals
-- Establish foundational LRI protocol
-- Provide working SDKs for two major ecosystems
-- Enable developers to experiment with LRI
+```
+aa07fe0 chore: Release v0.2.0
+07e9709 feat: Add lrictl CLI tool for LRI operations
+8684721 feat: Add gRPC metadata adapter for LCE
+cdb73bc feat: Add CBOR encoding for IoT support
+3a9dc0e docs: Add comprehensive Getting Started Guide
+0addb24 fix: Use IPv4 (127.0.0.1) instead of localhost in WebSocket tests
+```
 
-## [1.0.0] - 2025-XX-XX (Planned)
+## 🚀 Version Updates
 
-### Planned
-- Production-ready SDKs
-- Comprehensive test coverage
-- Performance benchmarks
-- Security audit
-- Complete documentation
-- Sidecar proxy
-- Interactive demo
-- Stable API guarantees
+- `node-lri`: 0.1.0 → 0.2.0
+- `lrictl`: 0.1.0 → 0.2.0
+- Status: Alpha → Beta
 
----
+## 📖 Documentation Updates
 
-## Version History
+- Updated CHANGELOG.md with detailed v0.2.0 release notes
+- Updated README.md badges (version: 0.2.0, status: beta)
+- Updated roadmap showing v0.1.0 and v0.2.0 as Complete ✅
+- Updated Features section with all v0.2.0 capabilities
 
-- **0.1.0** (Alpha) - Initial release, experimental
-- **0.2.0** (Beta) - Feature complete, API stabilizing
-- **1.0.0** (Stable) - Production ready, API stable
+## 🎯 Next Steps
 
-## Upgrade Guides
-
-### Upgrading to 0.2.0 (when released)
-
-TBD
-
-### Upgrading to 1.0.0 (when released)
-
-TBD
+After merging:
+- Tag release as v0.2.0
+- Consider publishing to npm
+- Python SDK parity (add WebSocket, LTP, LSS)
+- Production features (rate limiting, auth, metrics)
 
 ---
 
-**Note:** This project is currently in alpha (0.1.0-dev). APIs may change significantly before 1.0.0.
+**Ready for review and merge to main!** 🎉
