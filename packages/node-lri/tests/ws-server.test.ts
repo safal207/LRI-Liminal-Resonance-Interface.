@@ -13,10 +13,10 @@ describe('LRIWSServer', () => {
 
   afterEach(async () => {
     if (server) {
-      await new Promise<void>((resolve) => {
-        server.close();
-        setTimeout(resolve, 100);
-      });
+      await server.close();
+      // Give extra time for socket cleanup
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      server = null as any;
     }
   });
 
