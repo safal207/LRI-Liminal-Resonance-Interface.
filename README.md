@@ -224,6 +224,18 @@ lri/
 - [Node SDK Guide](packages/node-lri/README.md) (Coming soon)
 - [Python SDK Guide](packages/python-lri/README.md) (Coming soon)
 
+### Vocabulary Builds
+
+Generate distributable JSON vocabularies from the canonical YAML files:
+
+```bash
+npm run vocab:build
+```
+
+Artifacts are written to `vocab/dist/*.json` for publishing or SDK bundling.
+
+Run `npm test` to confirm the published JSON stays in lockstep with the YAML source files.
+
 ## Examples
 
 ### Express App

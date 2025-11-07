@@ -45,9 +45,9 @@ Copy each issue to GitHub individually.
 **Tasks:**
 - `vocab/intent.yaml` ✅
 - `vocab/affect.yaml` ✅
-- Build-скрипт конвертит в JSON в `dist/vocab/`
+- Build-скрипт конвертит в JSON в `dist/vocab/` ✅ (`npm run vocab:build`)
 
-**Acceptance:** Примеры и unit-тест на загрузку.
+**Acceptance:** Примеры и unit-тест на загрузку. ✅ Unit-тест оформлен (`npm test`).
 
 ---
 
