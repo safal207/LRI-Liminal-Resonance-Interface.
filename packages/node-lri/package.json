@@ -1,6 +1,6 @@
 {
   "name": "node-lri",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Node.js SDK for Liminal Resonance Interface (LRI)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
