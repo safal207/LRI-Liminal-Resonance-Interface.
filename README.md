@@ -234,8 +234,6 @@ npm run vocab:build
 
 Artifacts are written to `vocab/dist/*.json` for publishing or SDK bundling.
 
-Run `npm test` to confirm the published JSON stays in lockstep with the YAML source files.
-
 ## Examples
 
 ### Express App
