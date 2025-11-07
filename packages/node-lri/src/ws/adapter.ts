@@ -68,21 +68,6 @@ export type FrameListener = (lce: LCE, payload: Buffer) => void;
 export type ReadyListener = (connection: LRIWSConnection) => void;
 
 /**
- * Events emitted by {@link LRIWebSocketAdapter}
- */
-export interface LRIWebSocketAdapter {
-  on(event: 'frame', listener: FrameListener): this;
-  on(event: 'ready', listener: ReadyListener): this;
-  on(event: 'close', listener: () => void): this;
-  on(event: 'error', listener: (error: Error) => void): this;
-
-  once(event: 'frame', listener: FrameListener): this;
-  once(event: 'ready', listener: ReadyListener): this;
-  once(event: 'close', listener: () => void): this;
-  once(event: 'error', listener: (error: Error) => void): this;
-}
-
-/**
  * Adapter that encapsulates the LHS handshake and LCE frame parsing for raw WebSocket instances.
  */
 export class LRIWebSocketAdapter extends EventEmitter {
@@ -269,7 +254,7 @@ export class LRIWebSocketAdapter extends EventEmitter {
   private startClientHandshake(options: ClientAdapterOptions): void {
     const begin = () => {
       let phase: 'mirror' | 'seal' = 'mirror';
-      let requestedThread = options.threadId ?? randomUUID();
+      const requestedThread = options.threadId ?? randomUUID();
       let negotiatedFeatures: ('ltp' | 'lss' | 'compression')[] = [];
       let negotiatedEncoding: 'json' | 'cbor' = options.encoding ?? 'json';
 
