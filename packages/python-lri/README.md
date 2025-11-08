@@ -16,11 +16,11 @@ pip install python-lri
 
 ### FastAPI Integration
 
-#### Dependency Injection with `Depends`
+#### Working with `Depends`
 
-Use `LRI.dependency()` anywhere you would normally inject request state. The
-helper handles header parsing, validation, and converting the payload into the
-`LCE` Pydantic model.
+The `LRI.dependency()` helper plugs straight into FastAPI's dependency system
+so you can access LCE metadata without manually reading headers. Decide on a
+per-route basis whether an LCE is optional or required:
 
 ```python
 from typing import Optional
@@ -33,6 +33,14 @@ app = FastAPI()
 lri = LRI()
 
 
+@app.get("/optional")
+async def optional_context(
+    lce: Optional[LCE] = Depends(lri.dependency()),
+):
+    """Gracefully degrade when the header is absent."""
+    return {"intent": lce.intent.type if lce else None}
+
+
 @app.post("/events")
 async def ingest_event(
     payload: dict,
@@ -42,25 +50,53 @@ async def ingest_event(
     return {"intent": lce.intent.type, "payload": payload}
 
 
-@app.get("/optional")
-async def optional_context(
-    lce: Optional[LCE] = Depends(lri.dependency()),
-):
-    """Gracefully degrade when the header is absent."""
-    return {"intent": lce.intent.type if lce else None}
-
-
 @app.exception_handler(HTTPException)
 async def handle_http_exception(_, exc: HTTPException):
     """Pass through structured LRI errors in a predictable JSON shape."""
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 ```
 
-The dependency helper wraps `parse_request` and delivers an `LCE` (or `None`)
-directly to your route handler. Set `required=True` to enforce the presence of
-the header, otherwise requests without LCE metadata will still succeed. Because
-the helper raises `HTTPException`, standard FastAPI exception handlers can be
-used to customise error responses (see example above).
+Under the hood the dependency delegates to `LRI.parse_request`, converts the
+payload into the `LCE` Pydantic model and raises `HTTPException` if validation
+fails. Optional routes (`required=False`, the default) simply return `None` when
+the header is missing, enabling progressive enhancement.
+
+#### Payload patterns
+
+Route payloads and LCE metadata often travel together. Pair the dependency with
+your domain models so they can react to intent, consent, or QoS metadata in the
+same handler:
+
+```python
+@app.post("/chat")
+async def chat(
+    body: dict,
+    lce: LCE = Depends(lri.dependency(required=True)),
+):
+    return {
+        "prompt": body["prompt"],
+        "intent": lce.intent.type,
+        "consent": lce.policy.consent,
+    }
+```
+
+#### Error handling strategies
+
+Because `LRI.dependency()` surfaces problems as `HTTPException`, you can rely on
+FastAPI's global handlers to keep error payloads consistent for clients and
+tests. The helper raises:
+
+- `428` when `required=True` but the header is absent.
+- `400` when Base64/JSON decoding fails.
+- `422` when schema validation or model coercion fails.
+
+Add a single exception handler to normalise responses from every route:
+
+```python
+@app.exception_handler(HTTPException)
+async def format_lri_errors(_, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+```
 
 #### Manual Parsing (Advanced)
 

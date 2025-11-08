@@ -13,6 +13,7 @@ This example shows how to build an LRI-aware REST API server using FastAPI and t
 - ✅ **Pydantic validation** - Type-safe LCE models
 - ✅ **Async/await** - Modern Python async patterns
 - ✅ **Graceful degradation** - Works with or without LCE headers
+- ✅ **Payload-aware handlers** - Combine body data with LCE metadata (`/chat`)
 - ✅ **Structured errors** - Global handler keeps `HTTPException.detail` stable
 
 ## Quick Start
@@ -61,7 +62,7 @@ curl http://localhost:8000/
 {
   "name": "LRI FastAPI Example",
   "version": "0.1.0",
-  "endpoints": ["/ping", "/echo", "/ingest", "/api/data"],
+  "endpoints": ["/ping", "/echo", "/ingest", "/chat", "/api/data"],
   "lri": {
     "version": "0.1",
     "header": "LCE",
@@ -163,7 +164,50 @@ curl -X POST http://localhost:8000/ingest \
 }
 ```
 
-### 5. GET `/api/data`
+### 5. POST `/chat`
+
+Combine body payloads with LCE metadata to inform downstream logic.
+
+**Request:**
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "LCE: $(echo '{"v":1,"intent":{"type":"ask"},"policy":{"consent":"team"}}' | base64)" \
+  -d '{"prompt": "Summarise the last session"}'
+```
+
+**Response:**
+```json
+{
+  "prompt": "Summarise the last session",
+  "intent": "ask",
+  "consent": "team"
+}
+```
+
+**Invalid LCE (schema error -> 422):**
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "LCE: $(echo '{"v":1,"intent":{"type":"invalid"},"policy":{"consent":"team"}}' | base64)" \
+  -d '{"prompt": "Broken"}'
+```
+
+```json
+{
+  "detail": {
+    "error": "Invalid LCE",
+    "details": [
+      {
+        "message": "Invalid intent type. Must be one of the supported intent values.",
+        "path": "/intent/type"
+      }
+    ]
+  }
+}
+```
+
+### 6. GET `/api/data`
 
 Intent-aware endpoint that responds differently based on intent type.
 
@@ -252,6 +296,18 @@ async def ingest(
     lce: LCE = Depends(lri.dependency(required=True)),
 ):
     return {"intent": lce.intent.type, "echo": payload.get("message", "")}
+
+
+@app.post("/chat")
+async def chat(
+    payload: dict,
+    lce: LCE = Depends(lri.dependency(required=True)),
+):
+    return {
+        "prompt": payload["prompt"],
+        "intent": lce.intent.type,
+        "consent": lce.policy.consent,
+    }
 ```
 
 The shared handler keeps all `HTTPException` payloads consistent with the SDK

@@ -73,6 +73,20 @@ async def ingest(
     return {"intent": lce.intent.type, "echo": payload.get("message", "")}
 
 
+@app.post("/chat")
+async def chat(
+    payload: dict,
+    lce: LCE = Depends(lri.dependency(required=True)),
+):
+    """Combine request payloads with LCE metadata for downstream reasoning."""
+    prompt = payload.get("prompt", "")
+    return {
+        "prompt": prompt,
+        "intent": lce.intent.type,
+        "consent": lce.policy.consent,
+    }
+
+
 @app.get("/api/data")
 async def get_data(lce: Optional[LCE] = Depends(lri.dependency())):
     """Intent-aware endpoint"""
@@ -106,6 +120,7 @@ async def root():
             "/ping",
             "/echo",
             "/ingest",
+            "/chat",
             "/api/data",
         ],
         "lri": {

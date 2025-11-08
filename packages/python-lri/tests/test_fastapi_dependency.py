@@ -76,25 +76,48 @@ def _build_header(
     return base64.b64encode(header_bytes).decode("utf-8")
 
 
-def test_dependency_accepts_valid_requests(fastapi_dependency_app):
+@pytest.mark.parametrize(
+    "path,method,payload,header_factory,expected_status,expected_body",
+    [
+        ("/optional", "get", None, None, 200, {"intent": None}),
+        (
+            "/ingest",
+            "post",
+            {"message": "ping"},
+            lambda lri: lri.create_header(
+                LCE(
+                    v=1,
+                    intent=Intent(type="ask"),
+                    policy=Policy(consent="team"),
+                )
+            ),
+            200,
+            {"intent": "ask", "echo": "ping"},
+        ),
+    ],
+)
+def test_dependency_accepts_valid_requests(
+    fastapi_dependency_app,
+    path,
+    method,
+    payload,
+    header_factory,
+    expected_status,
+    expected_body,
+):
     lri, client = fastapi_dependency_app
 
-    # Optional dependency should succeed without headers.
-    response = client.get("/optional")
-    assert response.status_code == 200
-    assert response.json() == {"intent": None}
+    headers = {}
+    if header_factory:
+        headers[lri.header_name] = header_factory(lri)
 
-    # Required dependency should accept a valid header and payload.
-    header = lri.create_header(
-        LCE(v=1, intent=Intent(type="ask"), policy=Policy(consent="team"))
-    )
-    response = client.post(
-        "/ingest",
-        json={"message": "ping"},
-        headers={lri.header_name: header},
-    )
-    assert response.status_code == 200
-    assert response.json() == {"intent": "ask", "echo": "ping"}
+    request_kwargs = {"headers": headers}
+    if payload is not None:
+        request_kwargs["json"] = payload
+
+    response = getattr(client, method)(path, **request_kwargs)
+    assert response.status_code == expected_status
+    assert response.json() == expected_body
 
 
 def test_required_dependency_rejects_missing_header(fastapi_dependency_app):
@@ -106,12 +129,35 @@ def test_required_dependency_rejects_missing_header(fastapi_dependency_app):
     }
 
 
-def test_dependency_returns_422_with_schema_errors(fastapi_dependency_app):
+@pytest.mark.parametrize(
+    "overrides,expected_error,assertion",
+    [
+        (
+            {"intent": {"type": "invalid"}},
+            "Invalid LCE",
+            lambda detail: (
+                isinstance(detail.get("details"), list)
+                and any(
+                    err.get("path", "").startswith("/intent")
+                    for err in detail["details"]
+                )
+            ),
+        ),
+        (
+            {"unexpected": "value"},
+            "LCE validation failed",
+            lambda detail: "unexpected" in detail.get("message", ""),
+        ),
+    ],
+)
+def test_dependency_returns_422_errors(
+    fastapi_dependency_app, overrides, expected_error, assertion
+):
     lri, client = fastapi_dependency_app
     header = _build_header(
         intent_type="ask",
         consent="private",
-        overrides={"intent": {"type": "invalid"}},
+        overrides=overrides,
     )
 
     response = client.post(
@@ -122,29 +168,8 @@ def test_dependency_returns_422_with_schema_errors(fastapi_dependency_app):
 
     assert response.status_code == 422
     detail = response.json()["detail"]
-    assert detail["error"] == "Invalid LCE"
-    assert isinstance(detail["details"], list) and detail["details"]
-    assert all("path" in err and err["path"].startswith("/intent") for err in detail["details"])
-
-
-def test_dependency_returns_422_with_model_errors(fastapi_dependency_app):
-    lri, client = fastapi_dependency_app
-    header = _build_header(
-        intent_type="tell",
-        consent="private",
-        overrides={"unexpected": "value"},
-    )
-
-    response = client.post(
-        "/ingest",
-        json={"message": "ping"},
-        headers={lri.header_name: header},
-    )
-
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert detail["error"] == "LCE validation failed"
-    assert "unexpected" in detail["message"]
+    assert detail["error"] == expected_error
+    assert assertion(detail), detail
 
 
 def test_dependency_round_trips_response_headers(fastapi_dependency_app):
