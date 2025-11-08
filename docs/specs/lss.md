@@ -1,8 +1,10 @@
 # Liminal Session Store (LSS)
 
-LSS provides lightweight in-memory session state for Liminal Resonance Interface
+LSS provides lightweight session state for Liminal Resonance Interface
 clients. It tracks message history, calculates coherence, and emits drift
-signals when the dialogue diverges from the established context.
+signals when the dialogue diverges from the established context. The store
+ships with pluggable backends so you can keep state in memory for local
+experiments or in Redis for multi-process deployments.
 
 ## Core concepts
 
@@ -40,35 +42,56 @@ Both SDKs emit a structured event (`type`, `severity`, `timestamp`, `details`)
 through an event emitter/observer interface. Events are also recorded on the
 session metrics for later inspection.
 
+## Storage adapters
+
+- **In-memory** – default `Map`/`dict` backend, fast and lightweight.
+- **Redis** – persistence across workers. Uses simple JSON blobs per session
+  with key prefix `lss:session:*` (Node) / `lss:session:` (Python). Payloads
+  should remain JSON-serializable when Redis persistence is enabled.
+
+Both adapters honor the SDK options (`sessionTTL`, `maxMessages`, etc.). TTL is
+handled via background cleanup for memory and Redis `PX` expiry for remote
+storage.
+
 ## SDK API surface
 
 ### Node.js
 
 ```ts
-import { LSS } from 'node-lri/lss';
+import { LSS, RedisSessionStorage } from 'node-lri/lss';
+import Redis from 'ioredis';
 
-const lss = new LSS({ coherenceWindow: 8 });
+const redis = new Redis();
+const storage = new RedisSessionStorage(redis);
+const lss = new LSS({ coherenceWindow: 8, storage });
 
 await lss.store('thread-42', lce);
 const metrics = await lss.getMetrics('thread-42');
 
 lss.on('drift', (event) => console.log(event.type, event.details));
-await lss.updateMetrics('thread-42', { coherence: metrics.coherence });
+await lss.updateMetrics('thread-42', { coherence: metrics!.coherence });
+
+const stats = await lss.getStats();
 ```
 
 ### Python
 
 ```python
-from lri.lss import LSS
+from redis import Redis
+
+from lri.lss import LSS, RedisSessionStorage
 from lri.types import LCE, Intent, Policy
 
-lss = LSS(coherence_window=8)
+redis = Redis.from_url("redis://localhost:6379/0")
+lss = LSS(coherence_window=8, storage=RedisSessionStorage(redis))
 
 lss.store("thread-42", LCE(intent=Intent(type="ask"), policy=Policy(consent="team")))
 metrics = lss.get_metrics("thread-42")
 
 lss.on("drift", lambda event: print(event.type, event.details))
 lss.update_metrics("thread-42", coherence=metrics.coherence)
+
+stats = lss.get_stats()
 ```
 
 ## Message flow example
@@ -80,3 +103,58 @@ lss.update_metrics("thread-42", coherence=metrics.coherence)
 3. Application logic can inspect `getMetrics` to adapt responses (e.g. request
    clarification when coherence drops) or archive sessions when `getStats`
    shows stale activity.
+
+## Integration example
+
+```ts
+// Express middleware snippet
+import type { Request, Response, NextFunction } from 'express';
+import { LSS } from 'node-lri/lss';
+
+const lss = new LSS();
+
+export async function attachLss(req: Request, res: Response, next: NextFunction) {
+  const threadId = req.body?.lce?.memory?.thread;
+  if (threadId) {
+    await lss.store(threadId, req.body.lce);
+    const metrics = await lss.getMetrics(threadId);
+    res.locals.coherence = metrics?.coherence.overall ?? 1;
+
+    res.on('finish', async () => {
+      const stats = await lss.getStats();
+      console.log('live sessions', stats.sessionCount);
+    });
+  }
+
+  next();
+}
+```
+
+```python
+# FastAPI dependency example
+from fastapi import Depends, FastAPI, Request
+
+from lri.lss import LSS
+from lri.types import LCE
+
+lss = LSS()
+app = FastAPI()
+
+
+async def session_context(request: Request) -> dict[str, float]:
+    payload = await request.json()
+    lce = payload.get("lce")
+    thread = lce.get("memory", {}).get("thread") if lce else None
+    if thread:
+        lss.store(thread, LCE.model_validate(lce))
+        metrics = lss.get_metrics(thread)
+        return {"coherence": metrics.coherence.overall if metrics else 1.0}
+    return {"coherence": 1.0}
+
+
+@app.post("/respond")
+async def respond(ctx = Depends(session_context)):
+    if ctx["coherence"] < 0.5:
+        return {"message": "Could you clarify?"}
+    return {"message": "Acknowledged."}
+```

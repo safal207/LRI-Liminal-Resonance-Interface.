@@ -95,14 +95,25 @@ async def get_data(request: Request):
 ## LSS - Liminal Session Store
 
 LSS keeps lightweight conversational state with coherence and drift metrics.
+It ships with pluggable storage adapters so you can run entirely in-memory or
+persist to Redis when scaling out workers.
 
 - **Node.js** – `import { LSS } from 'node-lri/lss'`
 - **Python** – `from lri.lss import LSS`
 
 Use `store(threadId, lce)` to append messages, `getMetrics` / `get_metrics` to
-read coherence breakdowns, and subscribe to the `drift` event to react when
-conversations lose alignment. See [docs/specs/lss.md](docs/specs/lss.md) for the
-full specification and usage examples.
+read coherence breakdowns, `updateMetrics` / `update_metrics` to override them,
+and subscribe to the `drift` event to react when conversations lose alignment.
+`getStats()` / `get_stats()` provide quick session counts and average coherence
+for dashboards. See [docs/specs/lss.md](docs/specs/lss.md) for the full
+specification and integration snippets.
+
+```ts
+import Redis from 'ioredis';
+import { LSS, RedisSessionStorage } from 'node-lri/lss';
+
+const lss = new LSS({ storage: new RedisSessionStorage(new Redis()) });
+```
 
 The core data structure of LRI is the **LCE** (Liminal Context Envelope):
 
