@@ -93,7 +93,8 @@ function cleanValue<T>(value: T): T | undefined {
 }
 
 function sanitizeLCE(lce: LCE): Record<string, unknown> {
-  const { sig: _ignored, ...rest } = lce;
+  const { sig: _sig, ...rest } = lce;
+  void _sig;
   const cleaned = cleanValue(rest);
   return cleaned ?? {};
 }
