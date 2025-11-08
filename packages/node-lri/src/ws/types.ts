@@ -123,11 +123,18 @@ export interface LRIWSConnection {
   /** Negotiated encoding */
   encoding: 'json' | 'cbor';
   /** Enabled features */
-  features: Set<string>;
+  features: Set<'ltp' | 'lss' | 'compression'>;
   /** Handshake complete */
   ready: boolean;
   /** Connected timestamp */
   connectedAt: Date;
+  /** Optional session expiry */
+  expiresAt?: Date;
+  /** Metadata about the remote peer */
+  peer?: {
+    clientId?: string;
+    serverId?: string;
+  };
 }
 
 /**

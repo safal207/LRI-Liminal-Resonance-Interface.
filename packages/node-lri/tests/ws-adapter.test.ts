@@ -38,6 +38,10 @@ test('LRIWebSocketAdapter performs handshake and echoes frames', async (t) => {
     })
   );
 
+  const clientId = 'adapter-test-client';
+  const serverId = 'adapter-test-server';
+  const sealDurationMs = 60_000;
+
   let serverAdapter: AdapterInstance | null = null;
   let frameResolve: ((value: { lce: LCE; payload: Buffer }) => void) | null = null;
   const serverFramePromise = new Promise<{ lce: LCE; payload: Buffer }>((resolve) => {
@@ -50,6 +54,8 @@ test('LRIWebSocketAdapter performs handshake and echoes frames', async (t) => {
         role: 'server',
         ws: socket,
         features: ['lss'],
+        serverId,
+        sealDurationMs,
       });
 
       serverAdapter.once('ready', (connection) => {
@@ -75,6 +81,7 @@ test('LRIWebSocketAdapter performs handshake and echoes frames', async (t) => {
     role: 'client',
     ws: clientSocket,
     features: ['lss'],
+    clientId,
   });
 
   const [serverConnection, clientConnection] = await Promise.all([
@@ -87,6 +94,15 @@ test('LRIWebSocketAdapter performs handshake and echoes frames', async (t) => {
   assert.equal(serverConnection.sessionId, clientConnection.sessionId);
   assert.ok(serverConnection.features.has('lss'));
   assert.ok(clientConnection.features.has('lss'));
+  assert.equal(serverConnection.peer?.clientId, clientId);
+  assert.equal(clientConnection.peer?.serverId, serverId);
+  assert.ok(serverConnection.expiresAt instanceof Date);
+  assert.ok(clientConnection.expiresAt instanceof Date);
+  assert.ok(serverConnection.expiresAt!.getTime() > Date.now());
+  assert.ok(clientConnection.expiresAt!.getTime() > Date.now());
+  assert.ok(
+    Math.abs(serverConnection.expiresAt!.getTime() - clientConnection.expiresAt!.getTime()) < 50
+  );
 
   const responsePromise = new Promise<{ lce: LCE; payload: Buffer }>((resolve) => {
     clientAdapter.once('frame', (lce, payload) => resolve({ lce, payload }));

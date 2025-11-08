@@ -8,11 +8,13 @@ const { ws } = require('node-lri');
 const { LRIWebSocketAdapter } = ws;
 
 const SERVER_URL = 'ws://localhost:8080';
+const CLIENT_ID = 'ws-echo-adapter-client';
 const socket = new WebSocket(SERVER_URL);
 const adapter = new LRIWebSocketAdapter({
   role: 'client',
   ws: socket,
   features: ['lss'],
+  clientId: CLIENT_ID,
 });
 
 const threadId = `thread-${Date.now()}`;
@@ -46,10 +48,22 @@ adapter.on('close', () => {
 });
 
 console.log(`Connecting to ${SERVER_URL} using adapter...`);
+console.log(`[Client] Declared client ID: ${CLIENT_ID}`);
 
 adapter.ready
-  .then(() => {
+  .then((connection) => {
     console.log('[Client] Connected and handshake completed!\n');
+    console.log(`  Session: ${connection.sessionId}`);
+    console.log(`  Encoding: ${connection.encoding}`);
+    if (connection.peer?.serverId) {
+      console.log(`  Server ID: ${connection.peer.serverId}`);
+    }
+    if (connection.features.size > 0) {
+      console.log(`  Features: ${Array.from(connection.features).join(', ')}`);
+    }
+    if (connection.expiresAt) {
+      console.log(`  Session expires at: ${connection.expiresAt.toISOString()}`);
+    }
 
     const messages = [
       {

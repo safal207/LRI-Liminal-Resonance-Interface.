@@ -185,7 +185,7 @@ export class LRIWSServer {
       const conn: Partial<LRIWSConnection> = {
         sessionId: randomUUID(),
         encoding: 'json',
-        features: new Set(),
+        features: new Set<'ltp' | 'lss' | 'compression'>(),
         ready: false,
         connectedAt: new Date(),
       };
@@ -206,6 +206,10 @@ export class LRIWSServer {
           // Step 1: Hello
           if (step === 'hello' && msg.step === 'hello') {
             const hello = msg as LHSHello;
+
+            if (hello.client_id) {
+              conn.peer = { clientId: hello.client_id };
+            }
 
             // Negotiate encoding
             conn.encoding = this.options.encodings.includes(hello.encodings[0])
@@ -248,10 +252,13 @@ export class LRIWSServer {
             const seal: LHSSeal = {
               step: 'seal',
               session_id: conn.sessionId!,
-              expires: new Date(
-                Date.now() + this.options.sessionTimeout
-              ).toISOString(),
             };
+
+            if (this.options.sessionTimeout > 0) {
+              const expiresAt = new Date(Date.now() + this.options.sessionTimeout);
+              seal.expires = expiresAt.toISOString();
+              conn.expiresAt = expiresAt;
+            }
 
             // Add LTP signature if enabled
             if (this.options.ltp && this.options.ltpPrivateKey) {
