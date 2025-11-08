@@ -5,7 +5,8 @@ import json
 from typing import Optional
 
 import pytest
-from fastapi import Depends, FastAPI, Response
+from fastapi import Depends, FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from lri.lri import LRI
@@ -23,6 +24,12 @@ def fastapi_dependency_app() -> tuple[LRI, TestClient]:
 
     lri = LRI()
     app = FastAPI()
+
+    @app.exception_handler(HTTPException)
+    async def passthrough_http_exception(_, exc: HTTPException):
+        """Ensure the SDK detail envelope is returned for every error."""
+
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
     @app.get("/optional")
     async def optional_endpoint(
