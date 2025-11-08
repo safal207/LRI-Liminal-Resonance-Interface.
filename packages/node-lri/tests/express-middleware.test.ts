@@ -36,6 +36,7 @@ describe('lriMiddleware integration', () => {
         .set('LCE', createLCEHeader(lce));
 
       expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('application/liminal.lce+json');
       expect(response.body).toEqual({
         lce,
         raw: JSON.stringify(lce),
@@ -49,6 +50,7 @@ describe('lriMiddleware integration', () => {
       const response = await request(app).get('/inspect');
 
       expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('application/liminal.lce+json');
       expect(response.body).toEqual({
         lce: null,
         raw: null,
@@ -71,11 +73,16 @@ describe('lriMiddleware integration', () => {
         .set('LCE', Buffer.from(JSON.stringify(invalidLce), 'utf-8').toString('base64'));
 
       expect(response.status).toBe(422);
+      expect(response.headers['content-type']).toMatch('application/json');
       expect(response.body).toMatchObject({
         error: 'Invalid LCE',
         details: expect.any(Array),
       });
       expect(response.body.details.length).toBeGreaterThan(0);
+      expect(response.body.details[0]).toMatchObject({
+        path: expect.stringMatching(/^\//),
+        message: expect.any(String),
+      });
     });
   });
 
@@ -86,6 +93,7 @@ describe('lriMiddleware integration', () => {
       const response = await request(app).get('/inspect').set('LCE', '!!!not-base64!!!');
 
       expect(response.status).toBe(400);
+      expect(response.headers['content-type']).toMatch('application/json');
       expect(response.body).toMatchObject({
         error: 'Malformed LCE header',
         message: expect.any(String),
@@ -99,6 +107,7 @@ describe('lriMiddleware integration', () => {
       const response = await request(app).get('/inspect').set('LCE', invalidJsonHeader);
 
       expect(response.status).toBe(400);
+      expect(response.headers['content-type']).toMatch('application/json');
       expect(response.body).toMatchObject({
         error: 'Malformed LCE header',
         message: expect.any(String),
@@ -111,6 +120,7 @@ describe('lriMiddleware integration', () => {
       const response = await request(app).get('/inspect');
 
       expect(response.status).toBe(428);
+      expect(response.headers['content-type']).toMatch('application/json');
       expect(response.body).toEqual({
         error: 'LCE header required',
         header: 'LCE',

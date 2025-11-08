@@ -2,27 +2,29 @@
 
 > Example Express server that shows how to integrate the `node-lri` middleware, parse LCE metadata, and shape responses based on intent.
 
-## Prerequisites
+## Quick start
 
-- Node.js 18+
-- The repository checked out locally (the example imports middleware from `packages/node-lri`)
+1. Install the workspace dependencies from the repository root:
 
-## Setup
+   ```bash
+   npm install
+   ```
 
-```bash
-cd examples/express-app
-npm install
-```
+2. (Optional) Rebuild the SDK if you are modifying it alongside the example:
 
-The example uses the latest sources from `packages/node-lri`. When developing locally you can run `npm run build --workspace node-lri` from the repository root to rebuild the SDK before restarting the example server.
+   ```bash
+   npm run build --workspace node-lri
+   ```
 
-## Running the server
+3. Start the Express example:
 
-```bash
-npm run dev
-```
+   ```bash
+   cd examples/express-app
+   npm install
+   npm run dev
+   ```
 
-The server listens on <http://localhost:3000>. The console prints helpful curl commands when it starts.
+The dev server listens on <http://localhost:3000>. The console prints helpful curl commands when it boots.
 
 ## Crafting LCE headers
 
@@ -45,12 +47,15 @@ LCE=$(node -e "const { createLCEHeader } = require('node-lri'); const lce = { v:
 Health-check endpoint that flips a boolean when a valid LCE header is present.
 
 ```bash
-curl http://localhost:3000/ping
+curl -i http://localhost:3000/ping
 ```
 
-Response:
+Expected response (timestamp varies):
 
-```json
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
 {
   "ok": true,
   "timestamp": "2025-01-15T10:30:00.000Z",
@@ -61,12 +66,13 @@ Response:
 Send the same request with an LCE header:
 
 ```bash
-curl -H "LCE: $LCE" http://localhost:3000/ping
+curl -i -H "LCE: $LCE" http://localhost:3000/ping
 ```
 
-Expected response (the timestamp will vary):
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
 
-```json
 {
   "ok": true,
   "timestamp": "2025-01-15T10:30:01.000Z",
@@ -79,15 +85,17 @@ Expected response (the timestamp will vary):
 Mirrors the JSON body and responds with a server-generated LCE header that continues the thread.
 
 ```bash
-curl -X POST http://localhost:3000/echo \
+curl -i -X POST http://localhost:3000/echo \
   -H "Content-Type: application/json" \
   -H "LCE: $LCE" \
   -d '{"message": "Hello LRI!"}'
 ```
 
-Response body:
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+LCE: <Base64 header with follow-up metadata>
 
-```json
 {
   "echo": {
     "message": "Hello LRI!"
@@ -114,16 +122,28 @@ Response body:
 }
 ```
 
-The response also includes an `LCE` header. Decode it to inspect the server metadata:
+To inspect the response header:
 
 ```bash
 curl -i -X POST http://localhost:3000/echo \
   -H "Content-Type: application/json" \
   -H "LCE: $LCE" \
-  -d '{"message": "Inspect headers"}' | \ 
-  grep '^LCE:' | \ 
-  cut -d' ' -f2 | \ 
+  -d '{"message": "Inspect headers"}' | \
+  grep '^LCE:' | \
+  cut -d' ' -f2 | \
   base64 --decode
+```
+
+If you omit the `LCE` header while the middleware is configured with `required: true`, the API responds with:
+
+```http
+HTTP/1.1 428 Precondition Required
+Content-Type: application/json; charset=utf-8
+
+{
+  "error": "LCE header required",
+  "header": "LCE"
+}
 ```
 
 ### 3. `GET /api/data`
