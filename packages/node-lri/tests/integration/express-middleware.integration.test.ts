@@ -1,8 +1,8 @@
 import express, { type Express } from 'express';
 import request from 'supertest';
 
-import { lriMiddleware, createLCEHeader, type LRIMiddlewareOptions } from '../src/middleware';
-import type { LCE } from '../src/types';
+import { lriMiddleware, createLCEHeader, type LRIMiddlewareOptions } from '../../src/middleware';
+import type { LCE } from '../../src/types';
 
 function createApp(opts?: LRIMiddlewareOptions): Express {
   const app = express();
@@ -29,6 +29,7 @@ describe('lriMiddleware integration', () => {
         v: 1,
         intent: { type: 'ask', goal: 'Integration test' },
         policy: { consent: 'private' },
+        memory: { thread: '00000000-0000-4000-8000-000000000000', t: '2024-01-01T00:00:00.000Z' },
       };
 
       const response = await request(app)
@@ -42,6 +43,23 @@ describe('lriMiddleware integration', () => {
         raw: JSON.stringify(lce),
         header: 'application/liminal.lce+json',
       });
+    });
+
+    it('supports custom header names', async () => {
+      const app = createApp({ headerName: 'X-LCE' });
+      const lce: LCE = {
+        v: 1,
+        intent: { type: 'tell', goal: 'Custom header' },
+        policy: { consent: 'team' },
+      };
+
+      const response = await request(app)
+        .get('/inspect')
+        .set('X-LCE', createLCEHeader(lce));
+
+      expect(response.status).toBe(200);
+      expect(response.body.lce).toEqual(lce);
+      expect(response.body.raw).toBe(JSON.stringify(lce));
     });
 
     it('allows optional requests without LCE metadata', async () => {
