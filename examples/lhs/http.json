@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "path": "/ws",
+    "headers": {
+      "Host": "api.lri.example",
+      "Connection": "Upgrade",
+      "Upgrade": "websocket",
+      "Sec-WebSocket-Version": "13",
+      "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+      "LHS-Hello": "eyJzdGVwIjoiaGVsbG8iLCJscmlfdmVyc2lvbiI6IjAuMSIsImVuY29kaW5ncyI6WyJqc29uIiwiY2JvciJdLCJmZWF0dXJlcyI6WyJsdHAiLCJsc3MiXSwiZG1heF9mcmFtZV9ieXRlcyI6NjU1MzYsInNlc3Npb24iOnsia2luZCI6ImVwaGVtZXJhbCIsImxvY2FsZSI6ImVuLVVTIn19"
+    }
+  },
+  "response": {
+    "status": 101,
+    "reason": "Switching Protocols",
+    "headers": {
+      "Upgrade": "websocket",
+      "Connection": "Upgrade",
+      "Sec-WebSocket-Accept": "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+      "LHS-Mirror": "eyJzdGVwIjoibWlycm9yIiwibHJpX3ZlcnNpb24iOiIwLjEiLCJlbmNvZGluZyI6Impzb24iLCJmZWF0dXJlcyI6WyJsdHAiXSwibWF4X2ZyYW1lX2J5dGVzIjozMjc2OCwibm9uY2UiOiJzcnZyLTQ3Zjg5YSJ9",
+      "LHS-Seal": "eyJzdGVwIjoic2VhbCIsInNlc3Npb25faWQiOiJmbG93LTEzZDhhMiIsImV4cGlyZXNfYXQiOiIyMDI0LTA1LTE4VDEyOjA1OjExWiIsInNpZ25hdHVyZSI6Imx0cDpqd3M6ZXlKaGJHY2lPaUpJVXpVeE5DSXNJblI1Y0NJNklrcFhWQ0o5In0="
+    }
+  }
+}

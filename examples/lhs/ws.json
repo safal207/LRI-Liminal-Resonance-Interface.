@@ -1,0 +1,107 @@
+{
+  "frames": [
+    {
+      "direction": "client\u2192server",
+      "step": "hello",
+      "payload": {
+        "step": "hello",
+        "lri_version": "0.1",
+        "encodings": [
+          "json",
+          "cbor"
+        ],
+        "features": [
+          "ltp",
+          "lss"
+        ],
+        "max_frame_bytes": 65536,
+        "session": {
+          "kind": "ephemeral",
+          "locale": "en-US"
+        }
+      }
+    },
+    {
+      "direction": "server\u2192client",
+      "step": "mirror",
+      "payload": {
+        "step": "mirror",
+        "lri_version": "0.1",
+        "encoding": "json",
+        "features": [
+          "ltp"
+        ],
+        "max_frame_bytes": 32768,
+        "nonce": "srvr-47f89a"
+      }
+    },
+    {
+      "direction": "client\u2192server",
+      "step": "bind",
+      "payload": {
+        "step": "bind",
+        "thread": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "auth": {
+          "scheme": "Bearer",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        },
+        "context": {
+          "intent": {
+            "type": "teach"
+          },
+          "affect": {
+            "pad": [
+              0.2,
+              0.1,
+              0.3
+            ]
+          }
+        }
+      }
+    },
+    {
+      "direction": "server\u2192client",
+      "step": "seal",
+      "payload": {
+        "step": "seal",
+        "session_id": "flow-13d8a2",
+        "expires_at": "2024-05-18T12:05:11Z",
+        "signature": "ltp:jws:eyJhbGciOiJFZERTQSIsInR5cCI6IkxURUwi...",
+        "features": {
+          "ltp": {
+            "jws": {
+              "alg": "EdDSA",
+              "nonce": "srvr-47f89a"
+            }
+          }
+        }
+      }
+    },
+    {
+      "direction": "client\u21c4server",
+      "step": "flow",
+      "payload": {
+        "encoding": "json",
+        "lce": {
+          "v": 1,
+          "intent": {
+            "type": "teach"
+          },
+          "affect": {
+            "pad": [
+              0.2,
+              0.1,
+              0.3
+            ]
+          },
+          "policy": {
+            "consent": "private"
+          },
+          "body": {
+            "text": "Hello resonance"
+          }
+        }
+      }
+    }
+  ]
+}

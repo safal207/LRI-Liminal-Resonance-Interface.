@@ -175,6 +175,7 @@ lri/
 ├── examples/
 │   ├── express-app/     # Express example
 │   ├── fastapi-app/     # FastAPI example
+│   ├── lhs/             # Handshake traces (HTTP + WS)
 │   └── ws-echo/         # WebSocket example
 ├── sidecar/             # Transparent proxy
 ├── tools/               # CLI tools
@@ -217,12 +218,25 @@ lri/
   - Express.js integration & production examples
 
 ### Reference
-- [RFC-000: LRI Overview](docs/rfcs/rfc-000.md) (Coming soon)
+- [RFC-000: LRI Overview](docs/rfcs/rfc-000.md) (Draft)
+- [LHS Handshake Specification](docs/specs/lhs.md) ✅
 - [LCE Schema Spec](schemas/lce-v0.1.json)
 - [Intent Vocabulary](vocab/intent.yaml)
 - [Affect Vocabulary](vocab/affect.yaml)
 - [Node SDK Guide](packages/node-lri/README.md) (Coming soon)
 - [Python SDK Guide](packages/python-lri/README.md) (Coming soon)
+
+### Vocabulary Builds
+
+Generate distributable JSON vocabularies from the canonical YAML files:
+
+```bash
+npm run vocab:build
+```
+
+Artifacts are written to `vocab/dist/*.json` for publishing or SDK bundling.
+
+Run `npm test` to confirm the published JSON stays in lockstep with the YAML source files.
 
 ## Examples
 

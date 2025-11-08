@@ -45,9 +45,9 @@ Copy each issue to GitHub individually.
 **Tasks:**
 - `vocab/intent.yaml` ✅
 - `vocab/affect.yaml` ✅
-- Build-скрипт конвертит в JSON в `dist/vocab/`
+- Build-скрипт конвертит в JSON в `dist/vocab/` ✅ (`npm run vocab:build`)
 
-**Acceptance:** Примеры и unit-тест на загрузку.
+**Acceptance:** Примеры и unit-тест на загрузку. ✅ Unit-тест оформлен (`npm test`).
 
 ---
 
@@ -57,21 +57,14 @@ Copy each issue to GitHub individually.
 
 **Goal:** Определить шаги Hello/Mirror/Bind/Seal/Flow.
 
-**Acceptance:** JSON-примеры первого фрейма WS и заголовков HTTP.
+**Status:** ✅ Ratified in `docs/specs/lhs.md`.
 
-**Description:**
+**Tasks:**
+- `docs/specs/lhs.md` ✅ Narrative + state machine
+- `examples/lhs/http.json` ✅ HTTP Upgrade trace
+- `examples/lhs/ws.json` ✅ WebSocket control frames
 
-Define the Liminal Handshake Sequence (LHS) protocol:
-
-1. **Hello** - Client announces capabilities
-2. **Mirror** - Server reflects and negotiates
-3. **Bind** - Establish session context
-4. **Seal** - Cryptographic commitment
-5. **Flow** - Regular LCE exchange
-
-Create examples for:
-- WebSocket first frame
-- HTTP headers for LHS negotiation
+**Acceptance:** JSON-примеры первого фрейма WS и заголовков HTTP. ✅ Выполнено, см. `examples/lhs/`.
 
 ---
 
