@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import math
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, Protocol
 
 from ..types import LCE
 
@@ -85,8 +86,246 @@ class LSSSession:
     metadata: SessionMetadata
 
 
+class SessionStorage(Protocol):
+    """Persistence layer interface for the session store."""
+
+    def load(self, thread_id: str) -> Optional[LSSSession]:
+        ...
+
+    def save(self, session: LSSSession, ttl_ms: int) -> None:
+        ...
+
+    def delete(self, thread_id: str) -> bool:
+        ...
+
+    def load_all(self) -> List[LSSSession]:
+        ...
+
+    def clear(self) -> None:
+        ...
+
+    def cleanup(self, now: datetime, ttl_ms: int) -> None:
+        ...
+
+
+class InMemorySessionStorage(SessionStorage):
+    """Store sessions in memory."""
+
+    def __init__(self) -> None:
+        self._sessions: Dict[str, LSSSession] = {}
+
+    def load(self, thread_id: str) -> Optional[LSSSession]:
+        return self._sessions.get(thread_id)
+
+    def save(self, session: LSSSession, ttl_ms: int) -> None:  # noqa: ARG002
+        self._sessions[session.thread_id] = session
+
+    def delete(self, thread_id: str) -> bool:
+        return self._sessions.pop(thread_id, None) is not None
+
+    def load_all(self) -> List[LSSSession]:
+        return list(self._sessions.values())
+
+    def clear(self) -> None:
+        self._sessions.clear()
+
+    def cleanup(self, now: datetime, ttl_ms: int) -> None:
+        ttl = timedelta(milliseconds=ttl_ms)
+        for thread_id, session in list(self._sessions.items()):
+            if now - session.metadata.updated_at > ttl:
+                self._sessions.pop(thread_id, None)
+
+
+class RedisLike(Protocol):
+    """Subset of Redis client commands needed by the store."""
+
+    def get(self, key: str) -> Optional[str]:
+        ...
+
+    def set(self, key: str, value: str, *, px: Optional[int] = None) -> Any:
+        ...
+
+    def delete(self, *keys: str) -> int:
+        ...
+
+    def scan_iter(self, match: str) -> Iterable[str]:
+        ...
+
+
+class RedisSessionStorage(SessionStorage):
+    """Redis-backed session storage."""
+
+    def __init__(self, client: RedisLike, *, key_prefix: str = "lss:session:") -> None:
+        self._client = client
+        self._key_prefix = key_prefix
+
+    def load(self, thread_id: str) -> Optional[LSSSession]:
+        raw = self._client.get(self._key(thread_id))
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        data = json.loads(raw)
+        return session_from_dict(data)
+
+    def save(self, session: LSSSession, ttl_ms: int) -> None:
+        payload = json.dumps(session_to_dict(session), default=_json_default)
+        self._client.set(self._key(session.thread_id), payload, px=ttl_ms)
+
+    def delete(self, thread_id: str) -> bool:
+        return self._client.delete(self._key(thread_id)) > 0
+
+    def load_all(self) -> List[LSSSession]:
+        sessions: List[LSSSession] = []
+        for key in self._client.scan_iter(match=f"{self._key_prefix}*"):
+            raw = self._client.get(key)
+            if raw is None:
+                continue
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            sessions.append(session_from_dict(json.loads(raw)))
+        return sessions
+
+    def clear(self) -> None:
+        keys = list(self._client.scan_iter(match=f"{self._key_prefix}*"))
+        if keys:
+            self._client.delete(*keys)
+
+    def cleanup(self, now: datetime, ttl_ms: int) -> None:  # noqa: ARG002
+        # Redis handles TTL expiration via PX option.
+        return None
+
+    def _key(self, thread_id: str) -> str:
+        return f"{self._key_prefix}{thread_id}"
+
+
+def session_to_dict(session: LSSSession) -> Dict[str, Any]:
+    return {
+        "thread_id": session.thread_id,
+        "coherence": session.coherence,
+        "messages": [
+            {
+                "lce": message.lce.model_dump(),
+                "payload": message.payload,
+                "timestamp": message.timestamp.isoformat(),
+            }
+            for message in session.messages
+        ],
+        "metrics": {
+            "coherence": {
+                "overall": session.metrics.coherence.overall,
+                "intent_similarity": session.metrics.coherence.intent_similarity,
+                "affect_stability": session.metrics.coherence.affect_stability,
+                "semantic_alignment": session.metrics.coherence.semantic_alignment,
+            },
+            "previous_coherence": (
+                {
+                    "overall": session.metrics.previous_coherence.overall,
+                    "intent_similarity": session.metrics.previous_coherence.intent_similarity,
+                    "affect_stability": session.metrics.previous_coherence.affect_stability,
+                    "semantic_alignment": session.metrics.previous_coherence.semantic_alignment,
+                }
+                if session.metrics.previous_coherence
+                else None
+            ),
+            "drift_events": [
+                {
+                    "thread_id": event.thread_id,
+                    "type": event.type,
+                    "severity": event.severity,
+                    "timestamp": event.timestamp.isoformat(),
+                    "details": event.details,
+                }
+                for event in session.metrics.drift_events
+            ],
+            "updated_at": session.metrics.updated_at.isoformat(),
+        },
+        "metadata": {
+            "created_at": session.metadata.created_at.isoformat(),
+            "updated_at": session.metadata.updated_at.isoformat(),
+            "message_count": session.metadata.message_count,
+        },
+    }
+
+
+def session_from_dict(data: Dict[str, Any]) -> LSSSession:
+    metrics_data = data["metrics"]
+    previous = metrics_data.get("previous_coherence")
+    previous_coherence = (
+        CoherenceResult(
+            overall=previous["overall"],
+            intent_similarity=previous["intent_similarity"],
+            affect_stability=previous["affect_stability"],
+            semantic_alignment=previous["semantic_alignment"],
+        )
+        if previous
+        else None
+    )
+
+    drift_events_data = metrics_data.get("drift_events", [])
+
+    metrics = SessionMetrics(
+        coherence=CoherenceResult(
+            overall=metrics_data["coherence"]["overall"],
+            intent_similarity=metrics_data["coherence"]["intent_similarity"],
+            affect_stability=metrics_data["coherence"]["affect_stability"],
+            semantic_alignment=metrics_data["coherence"]["semantic_alignment"],
+        ),
+        previous_coherence=previous_coherence,
+        drift_events=[
+            DriftEvent(
+                thread_id=event.get("thread_id", data["thread_id"]),
+                type=event["type"],
+                severity=event["severity"],
+                timestamp=_parse_datetime(event["timestamp"]),
+                details=event.get("details"),
+            )
+            for event in drift_events_data
+        ],
+        updated_at=_parse_datetime(metrics_data["updated_at"]),
+    )
+
+    metadata = SessionMetadata(
+        created_at=_parse_datetime(data["metadata"]["created_at"]),
+        updated_at=_parse_datetime(data["metadata"]["updated_at"]),
+        message_count=int(data["metadata"]["message_count"]),
+    )
+
+    messages = [
+        LSSMessage(
+            lce=LCE.model_validate(message["lce"]),
+            payload=message.get("payload"),
+            timestamp=_parse_datetime(message["timestamp"]),
+        )
+        for message in data["messages"]
+    ]
+
+    return LSSSession(
+        thread_id=data["thread_id"],
+        messages=messages,
+        coherence=float(data["coherence"]),
+        metrics=metrics,
+        metadata=metadata,
+    )
+
+
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return repr(obj)
+
+
+def _parse_datetime(value: str) -> datetime:
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+    dt = datetime.fromisoformat(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 class LSS:
-    """In-memory session store with coherence and drift detection."""
+    """In-memory or Redis-backed session store with coherence and drift detection."""
 
     def __init__(
         self,
@@ -97,6 +336,7 @@ class LSS:
         drift_min_coherence: float = 0.6,
         drift_drop_threshold: float = 0.2,
         topic_shift_window: int = 5,
+        storage: Optional[SessionStorage] = None,
     ) -> None:
         self.max_messages = max_messages
         self.session_ttl = session_ttl
@@ -105,7 +345,7 @@ class LSS:
         self.drift_drop_threshold = drift_drop_threshold
         self.topic_shift_window = topic_shift_window
 
-        self._sessions: Dict[str, LSSSession] = {}
+        self.storage: SessionStorage = storage or InMemorySessionStorage()
         self._listeners: Dict[str, List[Callable[[DriftEvent], None]]] = {"drift": []}
 
     # ------------------------------------------------------------------
@@ -115,9 +355,11 @@ class LSS:
         """Persist an LCE to the session."""
 
         now = datetime.now(timezone.utc)
-        session = self._sessions.get(thread_id)
+        self.storage.cleanup(now, self.session_ttl)
+
+        session = self.storage.load(thread_id)
         if session is None:
-            session = self._sessions[thread_id] = LSSSession(
+            session = LSSSession(
                 thread_id=thread_id,
                 messages=[],
                 coherence=1.0,
@@ -140,9 +382,6 @@ class LSS:
         session.metadata.message_count = len(session.messages)
         session.metadata.updated_at = now
 
-        # Perform TTL cleanup lazily
-        self._cleanup_expired(now)
-
         if session.metadata.message_count >= 2:
             coherence = self.calculate_coherence(session.messages)
             drift_event = self._detect_drift(session, coherence, now)
@@ -154,33 +393,37 @@ class LSS:
 
             if drift_event is not None:
                 session.metrics.drift_events.append(drift_event)
-                self._emit('drift', drift_event)
+                self._emit("drift", drift_event)
+        else:
+            session.metrics.updated_at = now
+
+        self.storage.save(session, self.session_ttl)
 
     def get_session(self, thread_id: str) -> Optional[LSSSession]:
         """Return a session snapshot if it exists."""
 
-        return self._sessions.get(thread_id)
+        return self.storage.load(thread_id)
 
     def get_all_sessions(self) -> Iterable[LSSSession]:
         """Return all live sessions."""
 
-        return list(self._sessions.values())
+        return list(self.storage.load_all())
 
     def delete_session(self, thread_id: str) -> bool:
         """Remove a session."""
 
-        return self._sessions.pop(thread_id, None) is not None
+        return self.storage.delete(thread_id)
 
     def clear(self) -> None:
         """Remove all sessions."""
 
-        self._sessions.clear()
+        self.storage.clear()
 
     # ------------------------------------------------------------------
     # Metrics management
     # ------------------------------------------------------------------
     def get_metrics(self, thread_id: str) -> Optional[SessionMetrics]:
-        session = self._sessions.get(thread_id)
+        session = self.storage.load(thread_id)
         return session.metrics if session else None
 
     def update_metrics(
@@ -190,7 +433,7 @@ class LSS:
         coherence: Optional[CoherenceResult] = None,
         drift_events: Optional[List[DriftEvent]] = None,
     ) -> Optional[SessionMetrics]:
-        session = self._sessions.get(thread_id)
+        session = self.storage.load(thread_id)
         if session is None:
             return None
 
@@ -200,9 +443,19 @@ class LSS:
             session.coherence = coherence.overall
 
         if drift_events is not None:
-            session.metrics.drift_events = drift_events
+            session.metrics.drift_events = [
+                DriftEvent(
+                    thread_id=thread_id,
+                    type=event.type,
+                    severity=event.severity,
+                    timestamp=event.timestamp,
+                    details=event.details,
+                )
+                for event in drift_events
+            ]
 
         session.metrics.updated_at = datetime.now(timezone.utc)
+        self.storage.save(session, self.session_ttl)
         return session.metrics
 
     # ------------------------------------------------------------------
@@ -320,15 +573,17 @@ class LSS:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-    def _cleanup_expired(self, now: datetime) -> None:
-        ttl = timedelta(milliseconds=self.session_ttl)
-        expired = [
-            thread_id
-            for thread_id, session in self._sessions.items()
-            if now - session.metadata.updated_at > ttl
-        ]
-        for thread_id in expired:
-            self._sessions.pop(thread_id, None)
+    def get_stats(self) -> Dict[str, float]:
+        sessions = self.storage.load_all()
+        return {
+            "session_count": len(sessions),
+            "total_messages": sum(len(session.messages) for session in sessions),
+            "average_coherence": (
+                sum(session.coherence for session in sessions) / len(sessions)
+                if sessions
+                else 0.0
+            ),
+        }
 
     @staticmethod
     def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -354,4 +609,7 @@ __all__ = [
     "SessionMetrics",
     "CoherenceResult",
     "DriftEvent",
+    "InMemorySessionStorage",
+    "RedisSessionStorage",
+    "SessionStorage",
 ]
