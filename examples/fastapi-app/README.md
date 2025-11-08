@@ -93,7 +93,7 @@ curl -H "LCE: $LCE" http://localhost:8000/ping
 {
   "ok": true,
   "timestamp": "2025-01-15T10:30:00.000000",
-  "received_lce": true
+  "received_lce": false
 }
 ```
 

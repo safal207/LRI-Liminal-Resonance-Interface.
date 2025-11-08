@@ -16,11 +16,12 @@ pip install python-lri
 
 ### FastAPI Integration
 
-#### 1. Wire `Depends` once, use everywhere
+#### Wiring the dependency with `Depends`
 
-`LRI.dependency()` plugs straight into FastAPI's dependency system so handlers
-receive fully validated `LCE` models. Decide on a per-route basis whether the
-metadata is optional (default) or required:
+`LRI.dependency()` plugs directly into FastAPI so every route receives a
+fully-validated `LCE` (or `None` if the header is optional). Instantiate a
+single `LRI` object, then re-use the dependency wherever context-aware handling
+is required:
 
 ```python
 from typing import Optional
@@ -56,16 +57,16 @@ async def handle_http_exception(_, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 ```
 
-Under the hood the dependency delegates to `LRI.parse_request`, converts the
-payload into the `LCE` Pydantic model and raises `HTTPException` if validation
-fails. Optional routes simply return `None` when the header is missing so you
-can progressively enhance behaviour.
+Behind the scenes the dependency delegates to `LRI.parse_request`, converts the
+header into an `LCE` Pydantic model and raises an `HTTPException` when
+validation fails. Optional routes simply return `None` so you can progressively
+enhance behaviour without forcing every client to send metadata.
 
-#### 2. Payload patterns that combine body + LCE
+#### Request payload recipes
 
-Route payloads and LCE metadata often travel together. Pair the dependency with
-your domain models so they can react to intent, consent, or QoS metadata in the
-same handler:
+Combine domain payloads with LCE metadata to keep both the body and the intent
+visible to downstream systems. For example, a chat endpoint can react to the
+intent while forwarding the prompt verbatim:
 
 ```python
 @app.post("/chat")
@@ -80,19 +81,37 @@ async def chat(
     }
 ```
 
-#### 3. Exception handling strategies
+Typical JSON payloads pairing application data with an LCE header look like:
 
-Because `LRI.dependency()` surfaces problems as `HTTPException`, you can rely on
-FastAPI's global handlers to keep error payloads consistent for clients and
-tests. The helper raises:
+```json
+{
+  "message": "ping",
+  "metadata": {
+    "thread": "c1c29693-93c3-4f8a-b8ba-442d22a1f2c6"
+  }
+}
+```
+
+```json
+{
+  "prompt": "Summarise the last session",
+  "context": {"temperature": 0.2}
+}
+```
+
+#### Exception handling strategies
+
+Because `LRI.dependency()` surfaces problems as `HTTPException`, a single global
+handler keeps error payloads consistent for both clients and tests. The helper
+raises:
 
 - `428` when `required=True` but the header is absent.
 - `400` when Base64/JSON decoding fails.
 - `422` when schema validation or model coercion fails.
 
-Add a single exception handler to normalise responses from every route. The
-tests in `tests/test_fastapi_dependency.py` assert against this shape, so it is
-safe to surface directly to clients:
+Add one handler to normalise responses from every route. The tests in
+`tests/test_fastapi_dependency.py` assert against this shape, so it is safe to
+surface directly to clients:
 
 ```python
 @app.exception_handler(HTTPException)
