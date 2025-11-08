@@ -18,6 +18,18 @@ import {
   encodeLRIFrame,
 } from './types';
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+const logInfo = (...args: Parameters<typeof console.log>): void => {
+  if (!isTestEnv) {
+    console.log(...args);
+  }
+};
+const logError = (...args: Parameters<typeof console.error>): void => {
+  if (!isTestEnv) {
+    console.error(...args);
+  }
+};
+
 /**
  * LRI WebSocket Client
  *
@@ -89,7 +101,7 @@ export class LRIWSClient {
             try {
               await this.handleMessage(data);
             } catch (error) {
-              console.error('[LRI WS Client] Message error:', error);
+              logError('[LRI WS Client] Message error:', error);
               if (this.onError) {
                 await this.onError(error as Error);
               }
@@ -101,7 +113,7 @@ export class LRIWSClient {
       });
 
       this.ws.on('close', async () => {
-        console.log('[LRI WS Client] Connection closed');
+        logInfo('[LRI WS Client] Connection closed');
         // Set conn to null BEFORE calling onClose handler
         this.conn = null;
 
@@ -116,7 +128,7 @@ export class LRIWSClient {
       });
 
       this.ws.on('error', async (error: Error) => {
-        console.error('[LRI WS Client] Connection error:', error);
+        logError('[LRI WS Client] Connection error:', error);
         if (this.onError) {
           await this.onError(error);
         }
@@ -177,7 +189,9 @@ export class LRIWSClient {
             if (this.onConnect) {
               const result = this.onConnect();
               if (result instanceof Promise) {
-                result.catch(console.error);
+                result.catch((error) => {
+                  logError('[LRI WS Client] onConnect handler error:', error);
+                });
               }
             }
 
@@ -265,12 +279,12 @@ export class LRIWSClient {
     }
 
     const delay = 5000; // 5 seconds
-    console.log(`[LRI WS Client] Reconnecting in ${delay}ms...`);
+    logInfo(`[LRI WS Client] Reconnecting in ${delay}ms...`);
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((error) => {
-        console.error('[LRI WS Client] Reconnect failed:', error);
+        logError('[LRI WS Client] Reconnect failed:', error);
       });
     }, delay);
 
