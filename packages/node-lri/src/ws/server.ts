@@ -20,6 +20,18 @@ import {
   encodeLRIFrame,
 } from './types';
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+const logInfo = (...args: Parameters<typeof console.log>): void => {
+  if (!isTestEnv) {
+    console.log(...args);
+  }
+};
+const logError = (...args: Parameters<typeof console.error>): void => {
+  if (!isTestEnv) {
+    console.error(...args);
+  }
+};
+
 /**
  * LRI WebSocket Server
  *
@@ -48,9 +60,13 @@ import {
  * server.listen();
  * ```
  */
+type NormalizedServerOptions =
+  Required<Omit<LRIWSServerOptions, 'ltpPrivateKey'>> &
+  Pick<LRIWSServerOptions, 'ltpPrivateKey'>;
+
 export class LRIWSServer {
   private wss: WebSocketServer;
-  private options: Required<LRIWSServerOptions>;
+  private options: NormalizedServerOptions;
   private connections: Map<string, { ws: WebSocket; conn: LRIWSConnection }> = new Map();
 
   // Public handler properties
@@ -111,12 +127,12 @@ export class LRIWSServer {
       });
 
       this.wss.on('listening', () => {
-        console.log(`[LRI WS] Server listening on ${this.options.host}:${this.options.port}`);
+        logInfo(`[LRI WS] Server listening on ${this.options.host}:${this.options.port}`);
         resolve();
       });
 
       this.wss.on('error', (error: Error) => {
-        console.error('[LRI WS] Server error:', error);
+        logError('[LRI WS] Server error:', error);
         reject(error);
       });
 
@@ -150,7 +166,7 @@ export class LRIWSServer {
         try {
           await this.handleMessage(sessionId!, data);
         } catch (error) {
-          console.error('[LRI WS] Message error:', error);
+          logError('[LRI WS] Message error:', error);
           if (this.onError) {
             await this.onError(sessionId!, error as Error);
           }
@@ -165,13 +181,13 @@ export class LRIWSServer {
       });
 
       ws.on('error', async (error: Error) => {
-        console.error('[LRI WS] Connection error:', error);
+        logError('[LRI WS] Connection error:', error);
         if (this.onError) {
           await this.onError(sessionId!, error);
         }
       });
     } catch (error) {
-      console.error('[LRI WS] Handshake failed:', error);
+      logError('[LRI WS] Handshake failed:', error);
       ws.close(1002, 'Handshake failed');
     }
   }
@@ -277,7 +293,7 @@ export class LRIWSServer {
                 const signed = await LTP.sign(sealLCE, this.options.ltpPrivateKey);
                 seal.sig = signed.sig;
               } catch (error) {
-                console.error('[LRI WS] LTP signing failed:', error);
+                logError('[LRI WS] LTP signing failed:', error);
               }
             }
 
@@ -385,7 +401,7 @@ export class LRIWSServer {
 
       // Close server
       this.wss.close(() => {
-        console.log('[LRI WS] Server closed');
+        logInfo('[LRI WS] Server closed');
         resolve();
       });
     });
