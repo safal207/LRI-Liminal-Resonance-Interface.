@@ -8,6 +8,8 @@ const { ws } = require('node-lri');
 const { LRIWebSocketAdapter } = ws;
 
 const PORT = 8080;
+const SERVER_ID = 'ws-echo-adapter-server';
+const SEAL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 const sessions = new Map();
 
 const wss = new WebSocketServer({ port: PORT });
@@ -17,11 +19,20 @@ wss.on('connection', (socket) => {
     role: 'server',
     ws: socket,
     features: ['lss'],
+    serverId: SERVER_ID,
+    sealDurationMs: SEAL_DURATION_MS,
   });
 
   adapter.once('ready', (connection) => {
     sessions.set(connection.sessionId, adapter);
     console.log(`[Server] Client connected: ${connection.sessionId}`);
+    if (connection.peer?.clientId) {
+      console.log(`  Client ID: ${connection.peer.clientId}`);
+    }
+    console.log(`  Encoding: ${connection.encoding}`);
+    if (connection.expiresAt) {
+      console.log(`  Session expires at: ${connection.expiresAt.toISOString()}`);
+    }
     console.log(`[Server] Active sessions: ${sessions.size}`);
   });
 

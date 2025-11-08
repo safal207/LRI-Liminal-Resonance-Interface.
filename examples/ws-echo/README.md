@@ -8,6 +8,7 @@ This example demonstrates the `LRIWebSocketAdapter`, a lightweight helper that p
 - **Full LHS Handshake** – hello → mirror → bind → seal handled automatically.
 - **Binary LCE Frames** – payloads are delivered as `[length][LCE JSON][payload]` buffers.
 - **Semantic Echo** – the server reflects intent, affect, and memory metadata back to the client.
+- **Handshake Metadata** – negotiated encoding, peer identity, and session expiry are surfaced automatically.
 
 ## Project Layout
 
@@ -46,6 +47,9 @@ Server logs:
 ```
 LRI WebSocket Echo Server (adapter) listening on port 8080
 [Server] Client connected: 7f0d...
+  Client ID: ws-echo-adapter-client
+  Encoding: json
+  Session expires at: 2024-01-01T00:05:00.000Z
 [Server] Received from 7f0d...:
   Intent: ask
   Goal: Test basic echo
@@ -56,7 +60,13 @@ Client logs:
 
 ```
 Connecting to ws://localhost:8080 using adapter...
+[Client] Declared client ID: ws-echo-adapter-client
 [Client] Connected and handshake completed!
+  Session: 7f0d...
+  Encoding: json
+  Server ID: ws-echo-adapter-server
+  Features: lss
+  Session expires at: 2024-01-01T00:05:00.000Z
 [Client] Sending message 1/3:
   Intent: ask
   Payload: Hello, LRI!
@@ -75,10 +85,19 @@ const { ws } = require('node-lri');
 const wss = new WebSocketServer({ port: 8080 });
 
 wss.on('connection', (socket) => {
-  const adapter = new ws.LRIWebSocketAdapter({ role: 'server', ws: socket, features: ['lss'] });
+  const adapter = new ws.LRIWebSocketAdapter({
+    role: 'server',
+    ws: socket,
+    features: ['lss'],
+    serverId: 'ws-echo-adapter-server',
+    sealDurationMs: 5 * 60 * 1000,
+  });
 
-  adapter.once('ready', ({ sessionId }) => {
-    console.log(`[Server] Client connected: ${sessionId}`);
+  adapter.once('ready', (connection) => {
+    console.log(`[Server] Client connected: ${connection.sessionId}`);
+    console.log(`  Client ID: ${connection.peer?.clientId ?? 'unknown'}`);
+    console.log(`  Encoding: ${connection.encoding}`);
+    console.log(`  Session expires at: ${connection.expiresAt?.toISOString()}`);
   });
 
   adapter.on('frame', (lce, payload) => {
@@ -101,9 +120,15 @@ const WebSocket = require('ws');
 const { ws } = require('node-lri');
 
 const socket = new WebSocket('ws://localhost:8080');
-const adapter = new ws.LRIWebSocketAdapter({ role: 'client', ws: socket });
+const adapter = new ws.LRIWebSocketAdapter({
+  role: 'client',
+  ws: socket,
+  clientId: 'ws-echo-adapter-client',
+  features: ['lss'],
+});
 
-adapter.ready.then(() => {
+adapter.ready.then((connection) => {
+  console.log(`Session ${connection.sessionId} expires at ${connection.expiresAt?.toISOString()}`);
   adapter.send(
     { v: 1, intent: { type: 'ask', goal: 'Ping' }, policy: { consent: 'private' } },
     'Hello from the client!'

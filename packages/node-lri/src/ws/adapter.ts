@@ -182,6 +182,7 @@ export class LRIWebSocketAdapter extends EventEmitter {
     let negotiatedEncoding: 'json' | 'cbor' = 'json';
     let negotiatedFeatures: ('ltp' | 'lss' | 'compression')[] = [];
     let helloMsg: LHSHello | null = null;
+    let expiresAt: Date | undefined;
 
     this.handshakeListener = async (raw: RawData) => {
       try {
@@ -222,10 +223,13 @@ export class LRIWebSocketAdapter extends EventEmitter {
         }
 
         if (phase === 'bind' && message.step === 'bind') {
+          if (!helloMsg) {
+            throw new Error('Bind received before hello negotiation');
+          }
           const bind = message as LHSBind;
           const authenticated = await (options.authenticate?.({
             auth: bind.auth,
-            hello: helloMsg!,
+            hello: helloMsg,
             bind,
           }) ?? true);
 
@@ -241,10 +245,15 @@ export class LRIWebSocketAdapter extends EventEmitter {
 
           const sealDuration = options.sealDurationMs ?? 60 * 60 * 1000;
           if (sealDuration > 0) {
-            seal.expires = new Date(Date.now() + sealDuration).toISOString();
+            expiresAt = new Date(Date.now() + sealDuration);
+            seal.expires = expiresAt.toISOString();
+          } else {
+            expiresAt = undefined;
           }
 
           this.ws.send(JSON.stringify(seal));
+
+          const connectedAt = new Date();
 
           this.setConnection({
             sessionId,
@@ -252,7 +261,9 @@ export class LRIWebSocketAdapter extends EventEmitter {
             encoding: negotiatedEncoding,
             features: new Set(negotiatedFeatures),
             ready: true,
-            connectedAt: new Date(),
+            connectedAt,
+            expiresAt,
+            peer: helloMsg?.client_id ? { clientId: helloMsg.client_id } : undefined,
           });
           return;
         }
@@ -272,6 +283,7 @@ export class LRIWebSocketAdapter extends EventEmitter {
       const requestedThread = options.threadId ?? randomUUID();
       let negotiatedFeatures: ('ltp' | 'lss' | 'compression')[] = [];
       let negotiatedEncoding: 'json' | 'cbor' = options.encoding ?? 'json';
+      let mirrorMsg: LHSMirror | null = null;
 
       this.handshakeListener = (raw: RawData) => {
         try {
@@ -283,6 +295,7 @@ export class LRIWebSocketAdapter extends EventEmitter {
 
           if (phase === 'mirror' && message.step === 'mirror') {
             const mirror = message as LHSMirror;
+            mirrorMsg = mirror;
             negotiatedEncoding = mirror.encoding;
             negotiatedFeatures = mirror.features ?? [];
 
@@ -302,6 +315,8 @@ export class LRIWebSocketAdapter extends EventEmitter {
 
           if (phase === 'seal' && message.step === 'seal') {
             const seal = message as LHSSeal;
+            const expiresAt = seal.expires ? new Date(seal.expires) : undefined;
+            const connectedAt = new Date();
 
             this.setConnection({
               sessionId: seal.session_id,
@@ -309,7 +324,9 @@ export class LRIWebSocketAdapter extends EventEmitter {
               encoding: negotiatedEncoding,
               features: new Set(negotiatedFeatures),
               ready: true,
-              connectedAt: new Date(),
+              connectedAt,
+              expiresAt,
+              peer: mirrorMsg?.server_id ? { serverId: mirrorMsg.server_id } : undefined,
             });
             return;
           }
