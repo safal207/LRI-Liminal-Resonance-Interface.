@@ -16,11 +16,11 @@ pip install python-lri
 
 ### FastAPI Integration
 
-#### Working with `Depends`
+#### 1. Wire `Depends` once, use everywhere
 
-The `LRI.dependency()` helper plugs straight into FastAPI's dependency system
-so you can access LCE metadata without manually reading headers. Decide on a
-per-route basis whether an LCE is optional or required:
+`LRI.dependency()` plugs straight into FastAPI's dependency system so handlers
+receive fully validated `LCE` models. Decide on a per-route basis whether the
+metadata is optional (default) or required:
 
 ```python
 from typing import Optional
@@ -58,10 +58,10 @@ async def handle_http_exception(_, exc: HTTPException):
 
 Under the hood the dependency delegates to `LRI.parse_request`, converts the
 payload into the `LCE` Pydantic model and raises `HTTPException` if validation
-fails. Optional routes (`required=False`, the default) simply return `None` when
-the header is missing, enabling progressive enhancement.
+fails. Optional routes simply return `None` when the header is missing so you
+can progressively enhance behaviour.
 
-#### Payload patterns
+#### 2. Payload patterns that combine body + LCE
 
 Route payloads and LCE metadata often travel together. Pair the dependency with
 your domain models so they can react to intent, consent, or QoS metadata in the
@@ -80,7 +80,7 @@ async def chat(
     }
 ```
 
-#### Error handling strategies
+#### 3. Exception handling strategies
 
 Because `LRI.dependency()` surfaces problems as `HTTPException`, you can rely on
 FastAPI's global handlers to keep error payloads consistent for clients and
@@ -90,7 +90,9 @@ tests. The helper raises:
 - `400` when Base64/JSON decoding fails.
 - `422` when schema validation or model coercion fails.
 
-Add a single exception handler to normalise responses from every route:
+Add a single exception handler to normalise responses from every route. The
+tests in `tests/test_fastapi_dependency.py` assert against this shape, so it is
+safe to surface directly to clients:
 
 ```python
 @app.exception_handler(HTTPException)
@@ -232,8 +234,8 @@ async def format_lri_errors(_, exc: HTTPException):
 | Status | Scenario | Detail payload |
 | ------ | -------- | -------------- |
 | `400` | Base64 decode or JSON parse failure | `{"error": "Malformed LCE header", "message": "..."}` |
-| `422` | Schema errors | `{"error": "Invalid LCE", "details": [...]}` |
-| `422` | Pydantic model errors | `{"error": "LCE validation failed", "message": "..."}` |
+| `422` | Schema errors | `{"error": "Invalid LCE", "details": [{"path": "/intent/type", "message": "Invalid intent type. Must be one of: ask, tell, propose, confirm, notify, sync, plan, agree, disagree, reflect"}]}` |
+| `422` | Pydantic model errors | `{"error": "LCE validation failed", "message": "1 validation error for LCE\nunexpected\n  Extra inputs are not permitted [...]"}` |
 | `428` | Header required but missing | `{"error": "LCE header required", "header": "LCE"}` |
 
 Use these shapes to build consistent client-side error handling and automated

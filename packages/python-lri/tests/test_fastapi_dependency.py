@@ -137,16 +137,18 @@ def test_required_dependency_rejects_missing_header(fastapi_dependency_app):
             "Invalid LCE",
             lambda detail: (
                 isinstance(detail.get("details"), list)
-                and any(
-                    err.get("path", "").startswith("/intent")
-                    for err in detail["details"]
-                )
+                and detail["details"]
+                and detail["details"][0]["path"].startswith("/intent/type")
+                and "Invalid intent type" in detail["details"][0]["message"]
             ),
         ),
         (
             {"unexpected": "value"},
             "LCE validation failed",
-            lambda detail: "unexpected" in detail.get("message", ""),
+            lambda detail: (
+                "unexpected" in detail.get("message", "")
+                and "Extra inputs are not permitted" in detail["message"]
+            ),
         ),
     ],
 )
@@ -171,6 +173,19 @@ def test_dependency_returns_422_errors(
     assert detail["error"] == expected_error
     assert assertion(detail), detail
 
+
+def test_dependency_returns_400_for_malformed_header(fastapi_dependency_app):
+    lri, client = fastapi_dependency_app
+    response = client.post(
+        "/ingest",
+        json={"message": "ping"},
+        headers={lri.header_name: "!!!!"},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["error"] == "Malformed LCE header"
+    assert "Incorrect padding" in detail["message"]
 
 def test_dependency_round_trips_response_headers(fastapi_dependency_app):
     lri, client = fastapi_dependency_app

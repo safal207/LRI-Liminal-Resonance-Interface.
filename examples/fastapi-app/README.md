@@ -164,6 +164,16 @@ curl -X POST http://localhost:8000/ingest \
 }
 ```
 
+**Malformed header (Base64 error -> 400):**
+```json
+{
+  "detail": {
+    "error": "Malformed LCE header",
+    "message": "Incorrect padding"
+  }
+}
+```
+
 ### 5. POST `/chat`
 
 Combine body payloads with LCE metadata to inform downstream logic.
@@ -199,7 +209,7 @@ curl -X POST http://localhost:8000/chat \
     "error": "Invalid LCE",
     "details": [
       {
-        "message": "Invalid intent type. Must be one of the supported intent values.",
+        "message": "Invalid intent type. Must be one of: ask, tell, propose, confirm, notify, sync, plan, agree, disagree, reflect",
         "path": "/intent/type"
       }
     ]
