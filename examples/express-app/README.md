@@ -4,19 +4,21 @@
 
 ## Quick start
 
-1. Install the workspace dependencies from the repository root:
+Follow these steps from the repository root to launch the demo server:
+
+1. Install monorepo dependencies (installs both the SDK and example app packages):
 
    ```bash
    npm install
    ```
 
-2. (Optional) Rebuild the SDK if you are modifying it alongside the example:
+2. (Optional) Rebuild the SDK if you are developing the middleware at the same time:
 
    ```bash
    npm run build --workspace node-lri
    ```
 
-3. Start the Express example:
+3. Install example-local dependencies and start the development server:
 
    ```bash
    cd examples/express-app
@@ -24,7 +26,7 @@
    npm run dev
    ```
 
-The dev server listens on <http://localhost:3000>. The console prints helpful curl commands when it boots.
+   The server listens on <http://localhost:3000>. When it boots it logs ready-made `curl` commands you can paste into another terminal.
 
 ## Crafting LCE headers
 
@@ -42,47 +44,31 @@ LCE=$(node -e "const { createLCEHeader } = require('node-lri'); const lce = { v:
 
 ## Demo requests and responses
 
+Use the `LCE` variable you exported above (or create a new header inline) when exploring the API. Each command includes an explanation of the fields you should see in the response.
+
 ### 1. `GET /ping`
 
-Health-check endpoint that flips a boolean when a valid LCE header is present.
+Checks server health and tells you whether the middleware saw an LCE header.
 
 ```bash
 curl -i http://localhost:3000/ping
 ```
 
-Expected response (timestamp varies):
+- `receivedLCE: false` because no header was provided.
+- `timestamp` is generated on the server and will vary.
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{
-  "ok": true,
-  "timestamp": "2025-01-15T10:30:00.000Z",
-  "receivedLCE": false
-}
-```
-
-Send the same request with an LCE header:
+To prove the middleware parsed your header, run the same request with metadata:
 
 ```bash
 curl -i -H "LCE: $LCE" http://localhost:3000/ping
 ```
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-
-{
-  "ok": true,
-  "timestamp": "2025-01-15T10:30:01.000Z",
-  "receivedLCE": true
-}
-```
+- The status code remains `200`.
+- `receivedLCE: true` confirms the header was decoded successfully.
 
 ### 2. `POST /echo`
 
-Mirrors the JSON body and responds with a server-generated LCE header that continues the thread.
+Mirrors the JSON body and includes a fresh LCE header in the response so you can continue a conversation.
 
 ```bash
 curl -i -X POST http://localhost:3000/echo \
@@ -91,38 +77,11 @@ curl -i -X POST http://localhost:3000/echo \
   -d '{"message": "Hello LRI!"}'
 ```
 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json; charset=utf-8
-LCE: <Base64 header with follow-up metadata>
+- The response body echoes your payload under `echo.message`.
+- The server emits a new `LCE` header that you can decode with `base64 --decode` to inspect follow-up metadata.
+- Fields like `lce.memory.thread` copy identifiers from the request to maintain continuity.
 
-{
-  "echo": {
-    "message": "Hello LRI!"
-  },
-  "lce": {
-    "v": 1,
-    "intent": {
-      "type": "tell",
-      "goal": "Echo response"
-    },
-    "affect": {
-      "tags": [
-        "helpful"
-      ]
-    },
-    "memory": {
-      "thread": "<copied-from-request>",
-      "t": "2025-01-15T10:30:02.000Z"
-    },
-    "policy": {
-      "consent": "private"
-    }
-  }
-}
-```
-
-To inspect the response header:
+You can decode the response header inline:
 
 ```bash
 curl -i -X POST http://localhost:3000/echo \
@@ -131,58 +90,35 @@ curl -i -X POST http://localhost:3000/echo \
   -d '{"message": "Inspect headers"}' | \
   grep '^LCE:' | \
   cut -d' ' -f2 | \
-  base64 --decode
+  base64 --decode | \
+  jq
 ```
 
-If you omit the `LCE` header while the middleware is configured with `required: true`, the API responds with:
-
-```http
-HTTP/1.1 428 Precondition Required
-Content-Type: application/json; charset=utf-8
-
-{
-  "error": "LCE header required",
-  "header": "LCE"
-}
-```
+If you omit the request header while the middleware requires it (set in `index.ts`), the endpoint answers with a `428 Precondition Required` error describing the missing header name.
 
 ### 3. `GET /api/data`
 
-Endpoint that tailors the payload based on the request intent.
+Illustrates how intent drives responses. Create a sync-focused header:
 
 ```bash
 SYNC_LCE=$(node -e "const { createLCEHeader } = require('node-lri'); const lce = { v: 1, intent: { type: 'sync' }, policy: { consent: 'private' }, qos: { coherence: 0.9 } }; process.stdout.write(createLCEHeader(lce));")
 ```
 
-Ask for data:
+Ask for data with a standard intent:
 
 ```bash
 curl -H "LCE: $LCE" http://localhost:3000/api/data
 ```
 
-Response:
+- Returns a list of sample numbers and a friendly `message` acknowledging the ask intent.
 
-```json
-{
-  "message": "Here is the data you requested",
-  "data": [1, 2, 3, 4, 5]
-}
-```
-
-Synchronize context:
+Synchronize context instead:
 
 ```bash
 curl -H "LCE: $SYNC_LCE" http://localhost:3000/api/data
 ```
 
-Response:
-
-```json
-{
-  "message": "Context synchronized",
-  "coherence": 0.9
-}
-```
+- Response swaps the payload for `coherence` metadata and a message confirming the sync.
 
 ## Troubleshooting
 
