@@ -12,7 +12,7 @@ class FakeRedis:
     def __init__(self) -> None:
         self._store: dict[str, tuple[str, Optional[float]]] = {}
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Optional[str]:
         self._evict()
         value = self._store.get(key)
         return value[0] if value else None
