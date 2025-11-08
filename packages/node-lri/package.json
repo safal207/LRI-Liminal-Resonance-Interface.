@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "npm run test:jest && npm run test:node",
+    "test": "npm run test:integration && npm run test:jest && npm run test:node",
+    "test:integration": "jest --runInBand --runTestsByPath tests/express-middleware.test.ts",
     "test:jest": "jest",
     "test:node": "node --test --require ts-node/register tests/ws-adapter.test.ts",
     "test:watch": "jest --watch",
