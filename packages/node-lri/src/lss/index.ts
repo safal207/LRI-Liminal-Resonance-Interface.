@@ -22,9 +22,12 @@ import type {
   LSSOptions,
   LSSSession,
   ObstacleMetrics,
+  RevealConditions,
   SessionMetrics,
   SessionStatistics,
   SessionStorageAdapter,
+  Terma,
+  TermaType,
 } from './types';
 
 const INTENT_VECTORS: Record<string, number[]> = {
@@ -111,6 +114,15 @@ export class LSS extends EventEmitter {
       session.metrics.awareness = this.calculateAwareness(session.messages);
       session.metrics.obstacles = this.calculateObstacles(session.messages);
 
+      // Check for termas to reveal
+      const currentMessage = session.messages[session.messages.length - 1];
+      const revealedTermas = this.revealTermas(session, currentMessage);
+
+      // Emit events for revealed termas
+      for (const terma of revealedTermas) {
+        this.emit('terma_revealed', { terma, threadId });
+      }
+
       if (driftEvent) {
         const enrichedEvent: DriftEvent & { threadId: string } = { ...driftEvent, threadId };
         session.metrics.driftEvents.push(enrichedEvent);
@@ -124,24 +136,37 @@ export class LSS extends EventEmitter {
   }
 
   override on(event: 'drift', listener: (payload: DriftEvent & { threadId: string }) => void): this;
+  override on(
+    event: 'terma_revealed',
+    listener: (payload: { terma: Terma; threadId: string }) => void,
+  ): this;
   override on(event: string | symbol, listener: EventEmitterListener): this;
   override on(event: string | symbol, listener: EventEmitterListener): this {
     return super.on(event, listener);
   }
 
   override once(event: 'drift', listener: (payload: DriftEvent & { threadId: string }) => void): this;
+  override once(
+    event: 'terma_revealed',
+    listener: (payload: { terma: Terma; threadId: string }) => void,
+  ): this;
   override once(event: string | symbol, listener: EventEmitterListener): this;
   override once(event: string | symbol, listener: EventEmitterListener): this {
     return super.once(event, listener);
   }
 
   override off(event: 'drift', listener: (payload: DriftEvent & { threadId: string }) => void): this;
+  override off(
+    event: 'terma_revealed',
+    listener: (payload: { terma: Terma; threadId: string }) => void,
+  ): this;
   override off(event: string | symbol, listener: EventEmitterListener): this;
   override off(event: string | symbol, listener: EventEmitterListener): this {
     return super.off(event, listener);
   }
 
   override emit(event: 'drift', payload: DriftEvent & { threadId: string }): boolean;
+  override emit(event: 'terma_revealed', payload: { terma: Terma; threadId: string }): boolean;
   override emit(event: string | symbol, ...args: EventEmitterEmitArgs): boolean;
   override emit(event: string | symbol, ...args: EventEmitterEmitArgs): boolean {
     return super.emit(event, ...args);
@@ -770,6 +795,219 @@ export class LSS extends EventEmitter {
     if (keys.length === 0) return currentDepth + 1;
 
     return Math.max(...keys.map((key) => this.getObjectDepth(obj[key], currentDepth + 1)));
+  }
+
+  // ============================================
+  // Terma System (Hidden Insights)
+  // ============================================
+
+  /**
+   * Hide an insight (terma) to be revealed at the right moment
+   *
+   * Inspired by Padmasambhava's terma tradition: teachings hidden
+   * to be discovered when conditions are ripe
+   *
+   * @param threadId - Thread ID
+   * @param type - Type of terma (insight, pattern, warning, breakthrough)
+   * @param content - The insight content to hide
+   * @param revealConditions - Conditions for revealing
+   * @param priority - Priority (0-1, higher = more important)
+   * @returns The created terma
+   */
+  async hideTerma(
+    threadId: string,
+    type: TermaType,
+    content: string,
+    revealConditions: RevealConditions = {},
+    priority: number = 0.5,
+  ): Promise<Terma> {
+    const session = await this.storage.load(threadId);
+    if (!session) {
+      throw new Error(`Session not found: ${threadId}`);
+    }
+
+    const now = new Date();
+    const currentMetrics = session.metrics;
+
+    // Extract current context from latest message
+    const latestMessage = session.messages[session.messages.length - 1];
+    const topic = latestMessage?.lce.meaning?.topic;
+    const intent = latestMessage?.lce.intent.type;
+
+    const terma: Terma = {
+      id: `terma_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      type,
+      content,
+      hiddenAt: now,
+      hiddenContext: {
+        topic,
+        intent,
+        coherence: currentMetrics.coherence.overall,
+        awareness: currentMetrics.awareness.overall,
+        obstacles: currentMetrics.obstacles.overall,
+      },
+      revealConditions,
+      priority: Math.max(0, Math.min(1, priority)),
+      revealed: false,
+    };
+
+    session.metrics.termas.push(terma);
+    session.metadata.updatedAt = now;
+
+    await this.storage.save(session, this.options.sessionTTL);
+
+    return terma;
+  }
+
+  /**
+   * Get all termas for a session
+   *
+   * @param threadId - Thread ID
+   * @param includeRevealed - Include revealed termas (default: true)
+   * @returns Array of termas
+   */
+  async getTermas(threadId: string, includeRevealed: boolean = true): Promise<Terma[]> {
+    const session = await this.storage.load(threadId);
+    if (!session) {
+      return [];
+    }
+
+    const termas = session.metrics.termas;
+    if (includeRevealed) {
+      return termas;
+    }
+
+    return termas.filter((t) => !t.revealed);
+  }
+
+  /**
+   * Get revealed termas for a session
+   *
+   * @param threadId - Thread ID
+   * @returns Array of revealed termas
+   */
+  async getRevealedTermas(threadId: string): Promise<Terma[]> {
+    const session = await this.storage.load(threadId);
+    if (!session) {
+      return [];
+    }
+
+    return session.metrics.termas.filter((t) => t.revealed);
+  }
+
+  /**
+   * Check reveal conditions and reveal termas if conditions are met
+   *
+   * @param session - Current session
+   * @param currentMessage - Current message being processed
+   * @returns Array of revealed termas (if any)
+   */
+  private revealTermas(session: LSSSession, currentMessage: LSSMessage): Terma[] {
+    const now = new Date();
+    const revealed: Terma[] = [];
+
+    // Check each unrevealed terma
+    for (const terma of session.metrics.termas) {
+      if (terma.revealed) continue;
+
+      const conditions = terma.revealConditions;
+      let shouldReveal = true;
+
+      // Check time delay
+      if (conditions.timeDelay !== undefined) {
+        const timeSinceHidden = now.getTime() - terma.hiddenAt.getTime();
+        if (timeSinceHidden < conditions.timeDelay) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // Check coherence threshold
+      if (conditions.coherenceThreshold !== undefined) {
+        if (session.metrics.coherence.overall < conditions.coherenceThreshold) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // Check awareness threshold
+      if (conditions.awarenessThreshold !== undefined) {
+        if (session.metrics.awareness.overall < conditions.awarenessThreshold) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // Check obstacles threshold (lower is better)
+      if (conditions.obstaclesThreshold !== undefined) {
+        if (session.metrics.obstacles.overall > conditions.obstaclesThreshold) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // Check intent match
+      if (conditions.intentMatch && conditions.intentMatch.length > 0) {
+        if (!conditions.intentMatch.includes(currentMessage.lce.intent.type)) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // Check topic match (simple word overlap)
+      if (conditions.topicMatch !== undefined && terma.hiddenContext.topic) {
+        const currentTopic = currentMessage.lce.meaning?.topic || '';
+        const similarity = this.calculateTopicSimilarity(
+          terma.hiddenContext.topic,
+          currentTopic,
+        );
+
+        if (similarity < conditions.topicMatch) {
+          shouldReveal = false;
+          continue;
+        }
+      }
+
+      // All conditions met - reveal!
+      if (shouldReveal) {
+        terma.revealed = true;
+        terma.revealedAt = now;
+        revealed.push(terma);
+      }
+    }
+
+    return revealed;
+  }
+
+  /**
+   * Calculate topic similarity (simple word overlap)
+   *
+   * @param topic1 - First topic
+   * @param topic2 - Second topic
+   * @returns Similarity score (0-1)
+   */
+  private calculateTopicSimilarity(topic1: string, topic2: string): number {
+    if (!topic1 || !topic2) return 0;
+
+    const words1 = new Set(
+      topic1
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 2),
+    );
+    const words2 = new Set(
+      topic2
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 2),
+    );
+
+    if (words1.size === 0 || words2.size === 0) return 0;
+
+    const intersection = new Set([...words1].filter((w) => words2.has(w)));
+    const union = new Set([...words1, ...words2]);
+
+    return intersection.size / union.size;
   }
 
   /**
